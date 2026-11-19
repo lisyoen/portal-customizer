@@ -33,6 +33,11 @@ for f in $(find extension server -name '*.js' -not -path '*/node_modules/*') upd
   case "$f" in *.py) python3 -m py_compile "$f";; *) node --check "$f";; esac
 done
 echo "syntax OK"
+# Windows batch files need CRLF line endings: cmd misparses LF-only lines
+for f in $(find updater -name '*.bat'); do
+  if grep -q $'[^\r]$' "$f" || ! grep -q $'\r$' "$f"; then echo "LF line endings in $f (needs CRLF)"; exit 1; fi
+done
+echo "batch line endings OK"
 # Public repo guard: no private network addresses (extra local patterns in .guard-patterns, not committed).
 PAT='\b(10|172\.(1[6-9]|2[0-9]|3[01])|192\.168)\.[0-9]+\.[0-9]+\b'
 [ -f .guard-patterns ] && PAT="$PAT|$(paste -sd'|' .guard-patterns)"
