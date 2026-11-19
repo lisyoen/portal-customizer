@@ -73,7 +73,7 @@ The extension collects no personal data. Layouts, memos and images stay in the b
 Portal Customizer is source-available under the [Business Source License 1.1](LICENSE) (not an OSI open source license).
 
 - Installing, changing and running it inside your own organization is free, and changed versions may be shared under the same license.
-- Selling or distributing it to other companies as a product, paid installation, customization or support, or offering it as a hosted service needs a commercial license from the author.
+- **Commercial Use** (providing it to other organizations for a fee: selling, building, customizing, operating, maintaining or hosting it for them) requires the author's **prior written consent** in a separate commercial license agreement.
 - Each version converts to the Apache License 2.0 four years after its publication.
 
 Commercial licensing: lisyoen@gmail.com
