@@ -60,8 +60,10 @@
   <section id="adminSec">
     <div class="row admin-head"><h2 data-i18n="adminTitle">Administrator</h2><a href="#" id="adminToggle" class="small-link" data-i18n="adminLogin">Admin login</a></div>
     <div id="adminLoginBox" hidden>
+      <p id="adminServerAuto" class="status" hidden><span id="adminServerHost"></span> · <a href="#" id="adminServerChange" data-i18n="adminServerChange">Change</a></p>
       <input type="url" id="adminServer" data-i18n-placeholder="adminServerPlaceholder" spellcheck="false">
       <div class="row"><input type="text" id="adminUser" data-i18n-placeholder="adminUserPlaceholder" autocomplete="username"><input type="password" id="adminPass" data-i18n-placeholder="adminPassPlaceholder" autocomplete="current-password"></div>
+      <label class="check-row"><input type="checkbox" id="adminRemember"> <span data-i18n="adminRemember">Save login</span></label>
       <button id="adminLoginBtn" data-i18n="adminLoginBtn">Log in</button>
       <p id="adminLoginStatus" class="status"></p>
     </div>

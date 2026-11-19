@@ -171,30 +171,72 @@ $("exportLayout").addEventListener("click", async () => {
 
 // ---------- administrator: log in to the admin server and send layouts ----------
 function serverOrigin(u) { try { const x = new URL(u); return /^https?:$/.test(x.protocol) ? x.origin : ""; } catch (_e) { return ""; } }
+// The admin server is the server of the organization address (popup or policy), so it is not asked for;
+// "Change" opens the address field. Saved login (optional) fills the form and logs in again when the login expires.
+async function autoServer() {
+  const s = await local.get(["orgUrl"]);
+  if (serverOrigin(s.orgUrl || "")) return serverOrigin(s.orgUrl);
+  let managed = "";
+  try { managed = (await chrome.storage.managed.get("orgConfigUrl")).orgConfigUrl || ""; } catch (_e) { /* none */ }
+  return serverOrigin(managed || "");
+}
+let serverEdit = false;
 async function renderAdmin() {
-  const s = await local.get(["adminServer", "adminToken", "adminUser", "orgUrl"]);
+  const s = await local.get(["adminServer", "adminToken", "adminUser", "adminSaved"]);
   const logged = !!(s.adminServer && s.adminToken);
   $("adminBox").hidden = !logged;
   $("adminToggle").hidden = logged;
   if (logged) { $("adminLoginBox").hidden = true; $("adminWho").textContent = t("adminWho", [s.adminUser || "", s.adminServer]); }
-  if (!$("adminServer").value) $("adminServer").value = s.adminServer || serverOrigin(s.orgUrl || "") || "";
+  const auto = await autoServer();
+  const saved = s.adminSaved || null;
+  if (!$("adminServer").value) $("adminServer").value = auto || (saved && saved.server) || s.adminServer || "";
+  const fixed = !!auto && !serverEdit && serverOrigin($("adminServer").value) === auto;
+  $("adminServerAuto").hidden = !fixed;
+  $("adminServer").hidden = fixed;
+  if (fixed) $("adminServerHost").textContent = t("adminServerAuto", [new URL(auto).host]);
+  if (saved && !$("adminUser").value) { $("adminUser").value = saved.user || ""; $("adminPass").value = saved.pass || ""; }
+  $("adminRemember").checked = !!saved;
 }
-$("adminToggle").addEventListener("click", (e) => { e.preventDefault(); $("adminLoginBox").hidden = !$("adminLoginBox").hidden; });
+$("adminServerChange").addEventListener("click", (e) => { e.preventDefault(); serverEdit = true; renderAdmin().then(() => $("adminServer").focus()); });
+$("adminToggle").addEventListener("click", (e) => {
+  e.preventDefault();
+  $("adminLoginBox").hidden = !$("adminLoginBox").hidden;
+  if (!$("adminLoginBox").hidden) renderAdmin().then(() => ($("adminUser").value ? $("adminPass") : $("adminUser")).focus());
+});
+async function login(origin, user, pass) {
+  // the admin server answers extension requests with CORS headers: no extra browser permission needed
+  const r = await fetch(origin + "/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user, password: pass, label: "extension" }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || "HTTP " + r.status);
+  await local.set({ adminServer: origin, adminToken: d.token, adminUser: d.admin.name || d.admin.user });
+  return d.token;
+}
+// a saved login takes over when the server no longer accepts the token (expired)
+async function relogin() {
+  const { adminSaved: sv } = await local.get("adminSaved");
+  if (!sv || !sv.server || !sv.user) return "";
+  try { return await login(sv.server, sv.user, sv.pass || ""); } catch (_e) { return ""; }
+}
 $("adminLoginBtn").addEventListener("click", async () => {
   const origin = serverOrigin($("adminServer").value.trim());
   const st = $("adminLoginStatus");
   if (!origin) { st.textContent = t("orgBadUrl"); return; }
   st.textContent = "…";
+  const user = $("adminUser").value.trim(), pass = $("adminPass").value;
   try {
-    // the admin server answers extension requests with CORS headers: no extra browser permission needed
-    const r = await fetch(origin + "/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user: $("adminUser").value.trim(), password: $("adminPass").value, label: "extension" }) });
-    const d = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(d.error || "HTTP " + r.status);
-    await local.set({ adminServer: origin, adminToken: d.token, adminUser: d.admin.name || d.admin.user });
-    $("adminPass").value = ""; st.textContent = "";
+    await login(origin, user, pass);
+    if ($("adminRemember").checked) await local.set({ adminSaved: { server: origin, user, pass } });
+    else { await local.remove("adminSaved"); $("adminPass").value = ""; }
+    st.textContent = "";
+    serverEdit = false;
   } catch (err) { st.textContent = t("adminLoginFailed", [String(err.message || err)]); }
   renderAdmin();
 });
+// Enter in the id or password field logs in
+for (const id of ["adminUser", "adminPass", "adminServer"]) {
+  $(id).addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); $("adminLoginBtn").click(); } });
+}
+$("adminRemember").addEventListener("change", async (e) => { if (!e.target.checked) await local.remove("adminSaved"); });
 $("adminLogout").addEventListener("click", async (e) => {
   e.preventDefault();
   const s = await local.get(["adminServer", "adminToken"]);
@@ -219,8 +261,10 @@ $("sendBtn").addEventListener("click", async () => {
   const name = $("sendName").value.trim();
   $("sendBtn").disabled = true; st.textContent = "…";
   try {
-    const r = await fetch(s.adminServer + "/api/layouts", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s.adminToken },
+    const post = (token) => fetch(s.adminServer + "/api/layouts", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
       body: JSON.stringify({ name, layout, source: "extension v" + chrome.runtime.getManifest().version }) });
+    let r = await post(s.adminToken);
+    if (r.status === 401) { const tk = await relogin(); if (tk) r = await post(tk); }
     const d = await r.json().catch(() => ({}));
     if (r.status === 401) { await local.remove(["adminToken"]); await local.set({ editMode: false }); renderAdmin(); throw new Error(t("adminExpired")); }
     if (!r.ok) throw new Error(d.error || "HTTP " + r.status);
@@ -236,7 +280,8 @@ renderAdmin();
   if (!s.adminServer || !s.adminToken) return;
   try {
     const r = await fetch(s.adminServer + "/api/me", { headers: { Authorization: "Bearer " + s.adminToken } });
-    if (r.status === 401) { await local.remove(["adminToken", "adminUser"]); await local.set({ editMode: false }); renderAdmin(); }
+    if (r.status === 401 && !(await relogin())) { await local.remove(["adminToken", "adminUser"]); await local.set({ editMode: false }); }
+    if (r.status === 401) renderAdmin();
   } catch (_e) { /* server unreachable: keep the login */ }
 })();
 

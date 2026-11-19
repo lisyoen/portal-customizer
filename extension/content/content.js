@@ -161,27 +161,37 @@
     const colTops = groups.map((g, i) => (colEls[i] ? colEls[i].getBoundingClientRect().top : firstTops[i]));
     const minTop = Math.min(...colTops);
     collect(cont, minTop, null, cr);
+    // #pc-root starts where the highest column starts; each column then keeps its own distance from there to its
+    // first widget (column margins and paddings of the page), so the widgets land where they were
+    const innerTop0 = cr.top + px(cs.borderTopWidth) + px(cs.paddingTop);
+    const base = Math.max(innerTop0, minTop);
+    const innerLeft = cr.left + px(cs.borderLeftWidth) + px(cs.paddingLeft);
+    const firstLeft = groups[0] && groups[0].length ? Math.min(...groups[0].map((w) => w.getBoundingClientRect().left)) : innerLeft;
     const borderOf = (st, side) => {
       const w = px(st["border" + side + "Width"]), style = st["border" + side + "Style"];
       return w && style !== "none" && style !== "hidden" ? { w, style, color: st["border" + side + "Color"] } : null;
     };
     const cols = colEls.map((c, i) => {
-      if (!c) return null;
+      const padTop = Math.max(0, Math.round(firstTops[i] - base));
+      if (!c) return { padTop, shadow: "", bg: "" };
       const cr2 = c.getBoundingClientRect(), st = getComputedStyle(c);
-      collect(c, firstTops[i], i, cr2);
+      // parts are placed from the top-left of our column: the first widget's left edge, the root's inner top
+      const wl = Math.min(...groups[i].map((w) => w.getBoundingClientRect().left));
+      collect(c, firstTops[i], i, { left: wl, top: base, width: cr2.width });
       // borders become outer shadows so they do not take space from the widgets
       const sh = [];
       [["Left", -1, 0], ["Right", 1, 0], ["Top", 0, -1], ["Bottom", 0, 1]].forEach(([side, dx, dy]) => {
         const b = borderOf(st, side);
         if (b) sh.push(`${dx * b.w}px ${dy * b.w}px 0 0 ${b.color}`);
       });
-      return { padTop: Math.max(0, Math.round(firstTops[i] - cr2.top)), shadow: sh.join(", "), bg: st.backgroundColor };
+      return { padTop, shadow: sh.join(", "), bg: st.backgroundColor };
     });
     const innerTop = cr.top + px(cs.borderTopWidth) + px(cs.paddingTop);
     const borders = {};
     for (const side of ["Top", "Right", "Bottom", "Left"]) { const b = borderOf(cs, side); borders[side] = b ? `${b.w}px ${b.style} ${b.color}` : ""; }
     return {
       root: { margin: cs.margin, padding: cs.padding, padTop: px(cs.paddingTop) + Math.max(0, Math.round(minTop - innerTop)),
+        padLeft: px(cs.paddingLeft) + Math.max(0, Math.round((firstLeft - innerLeft) * 2) / 2),
         borders, bg: cs.backgroundColor, bgImage: cs.backgroundImage, radius: cs.borderRadius },
       cols, parts,
     };
@@ -192,6 +202,7 @@
     root.style.margin = lk.margin;
     root.style.padding = lk.padding;
     root.style.paddingTop = lk.padTop + "px";
+    if (lk.padLeft != null) root.style.paddingLeft = lk.padLeft + "px";
     for (const side of ["Top", "Right", "Bottom", "Left"]) if (lk.borders[side]) root.style["border" + side] = lk.borders[side];
     if (!/rgba\(\s*0,\s*0,\s*0,\s*0\s*\)|transparent/.test(lk.bg)) root.style.backgroundColor = lk.bg;
     if (lk.bgImage && lk.bgImage !== "none") root.style.backgroundImage = lk.bgImage;
@@ -202,7 +213,7 @@
     if (!lk) return;
     if (lk.padTop) c.style.paddingTop = lk.padTop + "px";
     if (lk.shadow) c.style.boxShadow = lk.shadow;
-    const bg = !/rgba\(\s*0,\s*0,\s*0,\s*0\s*\)|transparent/.test(lk.bg);
+    const bg = !!lk.bg && !/rgba\(\s*0,\s*0,\s*0,\s*0\s*\)|transparent/.test(lk.bg);
     if (bg) c.style.backgroundColor = lk.bg;
     if (lk.shadow || bg) c.style.alignSelf = "stretch";
   }
@@ -237,15 +248,29 @@
     try { r = D.detect(document, siteRule()); } finally { if (cloak && cloak.sheet) cloak.sheet.disabled = false; }
     const map = new Map();
     if (!r) { catalog = map; detected = null; lastStructure = []; return null; }
-    const columns = r.columns.map((c) => ({
-      width: c.width, flex: c.flex,
+    // the page's own spacing: space left of each column (from the previous column's widgets) and above each widget
+    const rectOf = (n) => n.getBoundingClientRect();
+    let prevRight = null;
+    const ruleSig = JSON.stringify(siteRule() || r.level || null);
+    const gapsOf = r.columns.map((c) => {
+      const rs = c.items.map((it) => rectOf(it.node));
+      if (!rs.length) return { col: null, items: [] };
+      const left = Math.min(...rs.map((x) => x.left));
+      const col = prevRight == null ? null : Math.max(0, left - prevRight);
+      prevRight = Math.max(...rs.map((x) => x.right));
+      return { col, items: rs.map((x, i) => (i ? Math.max(0, x.top - rs[i - 1].bottom) : null)) };
+    });
+    const columns = r.columns.map((c, ci) => ({
+      width: c.width, flex: c.flex, gap: gapsOf[ci].col,
       items: c.items.map((it, n) => {
         let key = L.nativeKey({ src: it.src, comp: it.comp, title: it.title, base: location.href });
         let k = key, i = 2;
         while (map.has(k)) k = key + "~" + (i++);
         key = k;
-        if (!naturalHeight.has(key)) naturalHeight.set(key, it.height || 200);
-        const info = { key, title: it.title || it.comp || t("widget") + " " + (n + 1), titleEl: it.titleEl, comp: it.comp, node: it.node, height: naturalHeight.get(key), src: it.src };
+        // first height seen per widget unit: a widget at another level can share the key (same frame address)
+        const hk = ruleSig + "|" + key;
+        if (!naturalHeight.has(hk)) naturalHeight.set(hk, it.height || 200);
+        const info = { key, title: it.title || it.comp || t("widget") + " " + (n + 1), titleEl: it.titleEl, comp: it.comp, node: it.node, height: naturalHeight.get(hk), src: it.src, gap: gapsOf[ci].items[n] };
         map.set(key, info);
         return info;
       }),

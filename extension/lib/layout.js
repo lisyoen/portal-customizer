@@ -85,20 +85,43 @@
   function str(v, max) { return String(v == null ? "" : v).slice(0, max || 200); }
 
   // Build a layout that mirrors the original page. catalog: [{width, flex, items:[{key,title,height}]}]
+  // Spacing measured on the page (column.gap: space left of a column, item.gap: space above a widget) is kept:
+  // the most common value becomes the layout default, the others stay on their column or panel.
   function fromCatalog(columns) {
-    return {
+    const mode = (vals) => {
+      const n = new Map();
+      vals.forEach((v) => n.set(v, (n.get(v) || 0) + 1));
+      let best = null, bc = 0;
+      n.forEach((c, v) => { if (c > bc) { best = v; bc = c; } });
+      return best;
+    };
+    const colGaps = columns.slice(1).map((c) => gapValue(c.gap)).filter((v) => v != null);
+    const panelGaps = columns.flatMap((c) => c.items.slice(1).map((p) => gapValue(p.gap))).filter((v) => v != null);
+    const dc = mode(colGaps), dp = mode(panelGaps);
+    const out = {
       schema: SCHEMA,
       version: "",
-      columns: columns.map((c) => ({
-        id: uid("c"),
-        width: c.flex ? null : num(c.width, MIN_COL, MAX_COL) || 380,
-        flex: c.flex ? 1 : null,
-        panels: c.items.map((p) => ({
-          id: uid("p"), type: "native", key: p.key, title: str(p.title),
-          height: num(p.height, MIN_PANEL, MAX_PANEL),
-        })),
-      })),
+      columns: columns.map((c, ci) => {
+        const col = {
+          id: uid("c"),
+          width: c.flex ? null : num(c.width, MIN_COL, MAX_COL) || 380,
+          flex: c.flex ? 1 : null,
+          panels: c.items.map((p, pi) => {
+            const panel = { id: uid("p"), type: "native", key: p.key, title: str(p.title), height: num(p.height, MIN_PANEL, MAX_PANEL) };
+            const g = pi ? gapValue(p.gap) : null;
+            if (g != null && g !== dp) panel.gap = g;
+            return panel;
+          }),
+        };
+        const g = ci ? gapValue(c.gap) : null;
+        if (g != null && g !== dc) col.gap = g;
+        return col;
+      }),
     };
+    if (dc != null || dp != null) out.gaps = {};
+    if (dc != null) out.gaps.col = dc;
+    if (dp != null) out.gaps.panel = dp;
+    return out;
   }
 
   function normPanel(p) {

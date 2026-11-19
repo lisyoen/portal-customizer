@@ -38,6 +38,26 @@ test("fromCatalog mirrors the original columns", () => {
   assert.ok(L.validate(l).ok);
 });
 
+test("fromCatalog keeps the page's spacing: most common gap as default, the rest per column and panel", () => {
+  const cat = [
+    { width: 366, items: [{ key: "a", height: 200 }, { key: "b", height: 200, gap: 25 }, { key: "c", height: 200, gap: 25 }] },
+    { width: 410, gap: 26.4, items: [{ key: "d", height: 600 }] },
+    { flex: true, gap: 27.6, items: [{ key: "e", height: 60 }, { key: "f", height: 80, gap: 0 }, { key: "g", height: 500, gap: 0.2 }] },
+  ];
+  const l = L.fromCatalog(cat);
+  assert.deepEqual(l.gaps, { col: 26.5, panel: 25 });
+  assert.equal(l.columns[1].gap, undefined);
+  assert.equal(l.columns[2].gap, 27.5);
+  assert.equal(l.columns[0].panels[1].gap, undefined);
+  assert.equal(l.columns[2].panels[1].gap, 0);
+  assert.equal(l.columns[2].panels[2].gap, 0);
+  assert.equal(L.panelGap(l, l.columns[0].panels[2]), 25);
+  assert.equal(L.colGap(l, l.columns[2]), 27.5);
+  assert.ok(L.validate(l).ok);
+  // nothing measured: defaults as before
+  assert.equal(L.fromCatalog([{ width: 300, items: [{ key: "x" }] }]).gaps, undefined);
+});
+
 test("movePanel within and across columns", () => {
   const l = L.fromCatalog(catalog);
   const [a, b] = l.columns[0].panels.map((p) => p.id);

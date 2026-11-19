@@ -787,5 +787,19 @@
   },
   "editNoWidgets": {
     "message": "이 화면에서 위젯을 찾지 못했습니다. 편집 모드를 껐다 켜서 위젯 단위 정하기에서 견본 위젯을 골라 주세요."
+  },
+  "adminServerChange": {
+    "message": "변경"
+  },
+  "adminServerAuto": {
+    "message": "관리 서버: $p1$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "adminRemember": {
+    "message": "로그인 정보 저장"
   }
 }

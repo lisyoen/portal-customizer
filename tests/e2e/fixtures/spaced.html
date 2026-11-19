@@ -1,0 +1,14 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Spaced dashboard</title><link rel="stylesheet" href="/fixtures/style.css">
+<style>
+.spaced { display: flex; height: 760px; }
+.scol { margin: 25px 0 0 12.5px; overflow: hidden; }
+.scol.c1 { width: 380px; } .scol.c2 { width: 424px; } .scol.c3 { flex: 1; margin-top: 0; border-left: 1px solid rgb(200, 200, 200); }
+.scol.c1 .inner, .scol.c2 .inner { width: calc(100% - 14px); }
+.scol .card { margin: 0 0 25px; box-sizing: border-box; }
+.scol.c3 .card { margin: 0; }
+</style></head>
+<body><header class="top">Spaced portal</header><div class="spaced">
+<div class="scol c1"><div class="inner"><section class="card" style="height:200px"><h3>A1</h3></section><section class="card" style="height:200px"><h3>A2</h3></section><section class="card" style="height:200px"><h3>A3</h3></section></div></div>
+<div class="scol c2"><div class="inner"><section class="card" style="height:600px"><h3>B1</h3></section></div></div>
+<div class="scol c3"><div class="inner"><section class="card" style="height:60px"><h3>C1</h3></section><section class="card" style="height:80px"><h3>C2</h3></section><section class="card" style="height:500px"><h3>C3</h3></section></div></div>
+</div></body></html>

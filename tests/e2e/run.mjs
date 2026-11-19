@@ -16,7 +16,7 @@ mf.host_permissions = ["http://*.test/*", "https://intranet.example.com/*"];
 writeFileSync(path.join(ext, "manifest.json"), JSON.stringify(mf));
 
 const LIBS = { "/lib/vue3.js": "vue/dist/vue.global.prod.js", "/lib/vue2.js": "vue2/dist/vue.min.js", "/lib/react.js": "react/umd/react.production.min.js", "/lib/react-dom.js": "react-dom/umd/react-dom.production.min.js" };
-const PAGES = { vue3: "vue3.html", vue2: "vue2.html", react: "react.html", plain: "plain.html", org: "plain.html", board: "board.html" };
+const PAGES = { vue3: "vue3.html", vue2: "vue2.html", react: "react.html", plain: "plain.html", org: "plain.html", board: "board.html", spaced: "spaced.html" };
 const TITLES = ["Notice", "Mail", "Calendar", "News", "Weather", "Links"];
 
 const ctx = await chromium.launchPersistentContext(mkdtempSync(path.join(tmpdir(), "pc-")), {
@@ -283,6 +283,36 @@ for (const fw of ["vue3", "vue2", "react", "plain"]) {
   await page.waitForTimeout(500);
   const off = await box("#menu");
   check("[look] turning off gives the menu back untouched", near(off, before.menu, ["x", "y", "w", "h"]) && !(await page.evaluate(() => document.querySelector(".pc-part, .pc-proxied"))), JSON.stringify(off));
+  await page.close();
+}
+
+// the page's own spacing (column margins, gaps that differ per column and panel) is kept: with the layout made
+// from the page, every widget stays exactly where it was
+{
+  const url = "http://spaced.portal.test/home";
+  const names = ["A1", "A2", "A3", "B1", "C1", "C2", "C3"];
+  const page = await ctx.newPage();
+  await page.goto(url);
+  await page.waitForTimeout(300);
+  const before = {};
+  for (const n of names) before[n] = await cardRect(page, n);
+  await setSite(url, { on: true, rule: { container: ".spaced", level: 3 } });
+  await sync();
+  await page.reload();
+  await page.waitForTimeout(600);
+  await store({ editMode: true });
+  await page.waitForSelector("#pc-toolbar .pc-primary", { timeout: 5000 }).catch(() => {});
+  await page.click("#pc-toolbar .pc-primary");
+  await page.waitForTimeout(700);
+  const bad = [];
+  for (const n of names) {
+    const a = await cardRect(page, n), b = before[n];
+    if (!a || !b || ["x", "y", "w", "h"].some((k) => Math.abs(a[k] - b[k]) > 1)) bad.push({ n, b, a });
+  }
+  check("[spacing] every widget stays where it was (column margins, per-column and per-panel gaps)", !bad.length, JSON.stringify(bad));
+  const lay = (await getSite(url)).userLayout || {};
+  check("[spacing] the measured gaps are kept in the layout", lay.gaps && lay.gaps.panel === 25 && lay.columns[2].panels[1].gap === 0 && lay.columns[2].panels[2].gap === 0, JSON.stringify(lay.gaps));
+  await setSite(url, { on: false });
   await page.close();
 }
 

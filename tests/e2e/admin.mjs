@@ -59,17 +59,31 @@ check("html panel is sanitized", html.includes("<b>Hello</b>") && !html.includes
 const tabId = await popup.evaluate(async (u) => (await chrome.tabs.query({ url: u }))[0].id, PAGE);
 await popup.goto(`chrome-extension://${id}/popup/popup.html?tab=${tabId}`);
 await popup.bringToFront();
+// the organization address names the admin server: it is not asked for
+await store({ orgUrl: server + "/portal-customizer.json" });
+await popup.reload();
+await popup.waitForTimeout(300);
 await popup.click("#adminToggle");
-await popup.fill("#adminServer", server);
+await popup.waitForTimeout(200);
+check("admin server comes from the organization address", !(await popup.locator("#adminServer").isVisible()) && (await popup.locator("#adminServerAuto").innerText()).includes("127.0.0.1:" + port), await popup.locator("#adminServerAuto").innerText());
 await popup.fill("#adminUser", "boss");
 await popup.fill("#adminPass", "wrong-pass");
 await popup.click("#adminLoginBtn");
 await popup.waitForTimeout(500);
 check("wrong password is refused", /로그인 실패|Login failed/.test(await popup.locator("#adminLoginStatus").innerText()));
 await popup.fill("#adminPass", "boss-pass-123");
-await popup.click("#adminLoginBtn");
+await popup.check("#adminRemember");
+await popup.press("#adminPass", "Enter");
 await popup.waitForSelector("#adminBox:not([hidden])", { timeout: 5000 });
-check("admin features appear after login", await popup.locator("#sendBtn").isVisible());
+check("Enter in the password field logs in", await popup.locator("#sendBtn").isVisible());
+const savedLogin = (await popup.evaluate(() => chrome.storage.local.get("adminSaved"))).adminSaved;
+check("save login keeps the server and account", savedLogin && savedLogin.server === server && savedLogin.user === "boss" && savedLogin.pass === "boss-pass-123", JSON.stringify(savedLogin && { s: savedLogin.server, u: savedLogin.user }));
+// an expired login is renewed with the saved account
+await store({ adminToken: "expired-token" });
+await popup.reload();
+await popup.waitForTimeout(800);
+const renewed = (await popup.evaluate(() => chrome.storage.local.get("adminToken"))).adminToken;
+check("expired login is renewed with the saved account", renewed && renewed !== "expired-token" && await popup.locator("#sendBtn").isVisible(), String(renewed).slice(0, 8));
 await popup.fill("#sendName", "Spring layout");
 await popup.click("#sendBtn");
 await popup.waitForTimeout(800);

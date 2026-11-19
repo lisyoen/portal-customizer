@@ -787,5 +787,19 @@
   },
   "editNoWidgets": {
     "message": "No widgets found on this page. Turn edit mode off and on, then pick a sample widget in the widget unit picker."
+  },
+  "adminServerChange": {
+    "message": "Change"
+  },
+  "adminServerAuto": {
+    "message": "Admin server: $p1$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "adminRemember": {
+    "message": "Save login"
   }
 }
