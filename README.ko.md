@@ -58,6 +58,10 @@ Portal Customizer 는 화면을 만든 프론트엔드 프레임워크의 컴포
 
 관리 서버 **설정·업데이트 > 적용할 화면** 에 화면 주소(이 주소로 시작하는 화면, `*` 는 아무 글자)를 넣고 배치를 게시합니다. 직원은 팝업 **사내 기본 배치** 에 `http://서버:포트/portal-customizer.json` 을 넣습니다. 파일 형식은 [docs/layout-format.md](docs/layout-format.md).
 
+## 기여
+
+외부 Pull Request 는 받지 않습니다. 버그 신고와 제안은 이슈로 남겨 주세요. [CONTRIBUTING.md](CONTRIBUTING.md)
+
 ## 개인정보
 
 확장은 개인 정보를 수집하지 않습니다. 배치·메모·이미지는 브라우저(`chrome.storage.local`)에 저장되고, 네트워크 요청은 조직 배치 주소와 관리 서버뿐입니다. 꾸미기를 켠 사이트에서만 동작합니다. [PRIVACY.md](PRIVACY.md)

@@ -64,6 +64,10 @@ On the admin server, enter the page addresses (pages starting with the address; 
 - `NODE_PATH=/path/to/node_modules node tests/e2e/run.mjs`: Playwright end-to-end tests against Vue 3, Vue 2, React 18 and plain HTML dashboards (`tests/e2e/fixtures`); needs `playwright`, `vue@3`, `vue2@npm:vue@2`, `react@18`, `react-dom@18`. `tests/e2e/admin.mjs` covers the admin server.
 - `scripts/release.sh <version> <notes.md>` builds the zip, tags and publishes a GitHub release.
 
+## Contributing
+
+Outside pull requests are not accepted; please open an issue. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Privacy
 
 The extension collects no personal data. Layouts, memos and images stay in the browser (`chrome.storage.local`); network requests go only to the organization layout address and the admin server. It runs only on sites you turned it on for. See [PRIVACY.md](PRIVACY.md).
