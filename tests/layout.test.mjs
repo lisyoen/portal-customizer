@@ -184,3 +184,13 @@ test("refreshMinutes: kept when valid, clamped, dropped otherwise", () => {
   assert.equal("refreshMinutes" in L.validate(Object.assign({ refreshMinutes: "x" }, base)).layout, false);
   assert.equal(L.refreshMinutes("3"), 3);
 });
+
+test("widgetRule: container selector + level 1-10, kept by validate", () => {
+  assert.deepEqual(L.widgetRule({ container: " main > div.grid ", level: 2 }), { container: "main > div.grid", level: 2 });
+  assert.equal(L.widgetRule({ container: "x", level: 0 }), null);
+  assert.equal(L.widgetRule({ container: "", level: 2 }), null);
+  assert.equal(L.widgetRule({ widget: ".card" }), null);
+  assert.equal(L.widgetRule({ container: "x", level: 99 }).level, 10);
+  const l = L.validate({ columns: [{ id: "c", panels: [] }], site: { container: "#a", level: 3, pause: ".x" } }).layout;
+  assert.deepEqual(l.site, { container: "#a", level: 3 });
+});

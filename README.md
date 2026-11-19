@@ -18,7 +18,7 @@ Portal Customizer reads the component structure of the front-end framework that 
 | Angular, web components | Custom element tags (`app-card` and so on) |
 | Anything else | Page structure (boxes side by side with boxes stacked in them) |
 
-The group of widgets that covers the largest area over two or more columns becomes the area to customize, and its widgets are split into columns. Pages that are not detected well can be given CSS selectors (widget area, widget, title) on the admin server.
+The group of widgets that covers the largest area over two or more columns becomes the area to customize, and its widgets are split into columns. On the first edit of a page an administrator confirms the widget unit: the widgets found are outlined over the page and can be made bigger (one level up in the page tree), smaller (one level down) or picked from one sample widget. The choice is saved with the layout and sent to the admin server, so no selectors need to be written by hand.
 
 The page's framework keeps rendering and updating its widgets. Portal Customizer never moves them in the page's DOM; it only decides where they appear, so their buttons, updates and clicks keep working.
 
@@ -32,7 +32,7 @@ The page's framework keeps rendering and updating its widgets. Portal Customizer
 | Size and spacing | Drag a column edge for width, a panel's bottom edge for height; set panel and column gaps one by one or as defaults. |
 | Widgets | Keep, hide or remove the page's widgets and hide their titles. Widgets re-created or rendered late by the page are found and placed again. |
 | Extra panels | Image, links (list or banners), memo, web page, video, HTML (unsafe markup removed), carousel, tab feed (collects posts from boards on the same site). |
-| Admin server | Optional server for administrators: layouts sent from the extension, default and scheduled layouts, pages and selectors, contents (CMS), statistics, extension distribution. See [server/README.md](server/README.md). |
+| Admin server | Optional server for administrators: layouts sent from the extension, default and scheduled layouts, the pages they apply to, contents (CMS), statistics, extension distribution. See [server/README.md](server/README.md). |
 | Organization default | Point the extension to a layout file and the pages it names start with that layout; changes are picked up automatically. |
 | Export / import | Save a layout as JSON and load it again. |
 | One-click updates | When an administrator uploads a new version on the admin server's **확장 배포** page, the icon shows **NEW**; one click installs it. |

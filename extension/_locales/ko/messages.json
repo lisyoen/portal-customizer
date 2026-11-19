@@ -728,5 +728,46 @@
   },
   "pageOnDone": {
     "message": "꾸미기를 켰습니다. 관리자 로그인 후 편집 모드에서 배치를 바꿀 수 있습니다"
+  },
+  "widgetUnit": {
+    "message": "위젯 단위"
+  },
+  "pickTitle": {
+    "message": "위젯 단위 정하기"
+  },
+  "pickInfo": {
+    "message": "위젯 $p1$개 · $p2$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      },
+      "p2": {
+        "content": "$2"
+      }
+    }
+  },
+  "pickBigger": {
+    "message": "더 크게(상위)"
+  },
+  "pickSmaller": {
+    "message": "더 작게(하위)"
+  },
+  "pickSample": {
+    "message": "견본 위젯 고르기"
+  },
+  "pickSampleHint": {
+    "message": "위젯으로 삼을 요소를 누르세요. 같은 단계의 다른 위젯을 함께 찾습니다"
+  },
+  "pickAuto": {
+    "message": "자동으로"
+  },
+  "pickApply": {
+    "message": "적용"
+  },
+  "pickNone": {
+    "message": "이 요소로는 위젯 묶음을 찾지 못했습니다"
+  },
+  "pickNoSelector": {
+    "message": "이 영역을 다시 찾을 방법을 만들지 못해 자동 감지를 씁니다"
   }
 }

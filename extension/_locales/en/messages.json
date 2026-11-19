@@ -728,5 +728,46 @@
   },
   "pageOnDone": {
     "message": "Customizing is on. Log in as an administrator and use edit mode to change the layout"
+  },
+  "widgetUnit": {
+    "message": "Widget unit"
+  },
+  "pickTitle": {
+    "message": "Choose the widget unit"
+  },
+  "pickInfo": {
+    "message": "$p1$ widgets · $p2$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      },
+      "p2": {
+        "content": "$2"
+      }
+    }
+  },
+  "pickBigger": {
+    "message": "Bigger (parent)"
+  },
+  "pickSmaller": {
+    "message": "Smaller (child)"
+  },
+  "pickSample": {
+    "message": "Pick a sample widget"
+  },
+  "pickSampleHint": {
+    "message": "Click an element to use as a widget; the others at the same level are found too"
+  },
+  "pickAuto": {
+    "message": "Automatic"
+  },
+  "pickApply": {
+    "message": "Apply"
+  },
+  "pickNone": {
+    "message": "No widget group found from this element"
+  },
+  "pickNoSelector": {
+    "message": "Could not find a way to locate this area again; automatic detection is used"
   }
 }

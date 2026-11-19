@@ -291,7 +291,8 @@ function drawEditor() {
   shell("layouts", [
     h("h1", {}, [h("a", { href: "#/layouts", text: "배치" }), "›", name, h("span", { class: "badge " + ed.meta.status, text: STATUS[ed.meta.status] }),
       h("span", { class: "grow" }), h("button", { id: "saveBtn", class: "primary", text: "저장", disabled: !ed.dirty, onclick: saveLayout })]),
-    h("div", { class: "card" }, [h("div", { class: "row" }, [note, h("span", { class: "muted", text: `수정 ${fmt(ed.meta.updatedAt)} ${ed.meta.updatedBy || ""}` })]), h("div", { id: "schematic", style: { marginTop: "10px" } })]),
+    h("div", { class: "card" }, [h("div", { class: "row" }, [note, h("span", { class: "muted", text: `수정 ${fmt(ed.meta.updatedAt)} ${ed.meta.updatedBy || ""}` }),
+      h("span", { class: "muted", id: "unitInfo", text: ed.layout.site ? `위젯 단위: 확장에서 지정(영역 아래 ${ed.layout.site.level}단계)` : "위젯 단위: 자동 감지" })]), h("div", { id: "schematic", style: { marginTop: "10px" } })]),
     tabs, body]);
   drawSchematic();
   if (ed.tab === "history") drawHistory();
@@ -537,9 +538,6 @@ async function pageSettings() {
   const mins = h("input", { type: "number", min: 1, max: 10080, value: st.checkMinutes || (st.checkHours ? st.checkHours * 60 : 1), style: { width: "80px" } });
   const refresh = h("input", { type: "number", min: 1, max: 1440, value: st.refreshMinutes || 5, style: { width: "80px" } });
   const match = h("textarea", { rows: 3, style: { width: "100%" }, placeholder: "https://portal.example.com/home" }); match.value = (st.siteMatch || []).join("\n");
-  const rule = st.siteRule || {};
-  const ruleIn = {}; for (const k of ["container", "widget", "title", "pause", "avoid"]) ruleIn[k] = h("input", { type: "text", value: rule[k] || "", placeholder: "CSS 선택자", style: { width: "260px" } });
-  const RULE_LABEL = { container: "위젯을 담은 영역", widget: "위젯", title: "위젯 제목", pause: "있으면 꾸미기를 잠시 멈춤", avoid: "오른쪽에 떠 있는 패널(가리지 않음)" };
   const status = u.status;
   const unused = m.files.filter((f) => !f.used);
   shell("settings", [h("h1", { text: "설정·업데이트" }),
@@ -551,11 +549,9 @@ async function pageSettings() {
       h("button", { class: "primary", disabled: !isAdmin, style: { marginTop: "8px" }, text: "저장", onclick: () => guard(async () => { await api("PUT", "/api/settings", { publicUrl: pub.value, siteName: site.value, autoUpdate: auto.checked, checkMinutes: Number(mins.value), refreshMinutes: Number(refresh.value) }); setSiteName(site.value); toast("저장했습니다"); pageSettings(); }) })]),
     h("div", { class: "card" }, [h("h2", { style: { marginTop: 0 }, text: "적용할 화면" }),
       h("div", { class: "field" }, [h("label", { text: "배치를 적용할 화면 주소(한 줄에 하나, 이 주소로 시작하는 화면에 적용, * 는 아무 글자)" }), match]),
-      h("p", { class: "muted", text: "위젯은 자동으로 찾습니다(Vue·React·Angular 컴포넌트, 없으면 화면 구조). 자동으로 잘 안 잡히는 화면만 아래 선택자를 넣습니다." }),
-      ...Object.keys(ruleIn).map((k) => h("div", { class: "row" }, [h("span", { style: { width: "220px" }, text: RULE_LABEL[k] }), ruleIn[k]])),
+      h("p", { class: "muted", text: "위젯은 확장이 자동으로 찾고, 관리자가 편집 모드의 ▣ 위젯 단위 에서 확인·조정합니다. 정한 위젯 단위는 배치와 함께 이 서버로 전송되어 직원에게 배포됩니다." }),
       h("button", { class: "primary", disabled: !isAdmin, style: { marginTop: "8px" }, text: "저장", onclick: () => guard(async () => {
-        const siteRule = {}; for (const k of Object.keys(ruleIn)) siteRule[k] = ruleIn[k].value;
-        await api("PUT", "/api/settings", { siteMatch: match.value, siteRule }); toast("저장했습니다"); pageSettings(); }) })]),
+        await api("PUT", "/api/settings", { siteMatch: match.value }); toast("저장했습니다"); pageSettings(); }) })]),
     h("div", { class: "card" }, [h("h2", { style: { marginTop: 0 }, text: "업데이트" }),
       h("div", { class: "row" }, [h("span", { text: `현재 v${u.current}` }), u.check ? h("span", { class: "muted", text: u.check.ok ? `최신 v${u.check.latest || "-"} (확인 ${fmt(u.check.at)})` : "확인 실패: " + u.check.error }) : null]),
       h("div", { class: "row", style: { marginTop: "8px" } }, [

@@ -17,7 +17,12 @@
   function site() { return (S.sites && S.sites[SITE]) || {}; }
   // the organization layout applies to the pages its "match" list names (address prefixes)
   function orgApplies() { return !!(S.orgConfig && S.orgConfig.layout && L.matchesSite(S.orgConfig.match, location.href)); }
-  function siteRule() { return (orgApplies() && S.orgConfig.site) || site().rule || null; }
+  // Widget rule (container + level) picked in edit mode: this page's own pick, else the one saved with the
+  // layout in use (sent to the admin server with it), else the organization's.
+  function siteRule() {
+    const lay = effectiveLayout();
+    return site().rule || (lay && lay.site) || (orgApplies() && S.orgConfig.site) || null;
+  }
   function active() { return S.enabled && (site().on || orgApplies()); }
   // Edit mode is for administrators only: without an admin login (popup) the page never enters it.
   function gateEdit() { if (!S.adminToken && S.editMode) { S.editMode = false; draft = null; } }
@@ -109,11 +114,12 @@
     try { document.documentElement.setAttribute("data-pc-widgets", String(map.size)); } catch (_e) { /* ignore */ }
     return columns;
   }
-  function pauseNow() { const r = siteRule(); return !!(r && r.pause && document.querySelector(r.pause)); }
-
   function update() {
     if (!contextAlive) return;
-    if (!active() || pauseNow()) { unmount(); return; }
+    if (picker) return; // choosing the widget level: the page stays as it is
+    if (!active()) { unmount(); return; }
+    // first edit of a page without a widget rule or layout: let the user confirm the widget level first
+    if (S.editMode && !draft && !siteRule() && !effectiveLayout() && !pickerShown) { pickerShown = true; openPicker(); return; }
     let layout = null;
     if (S.editMode) layout = draft || effectiveLayout();
     else layout = effectiveLayout();
@@ -131,7 +137,7 @@
       // widgets of a saved layout may appear a little after the page loads: wait for them (up to ~6 s)
       const want = layout ? [...L.usedNativeKeys(layout)] : [];
       if (want.some((k) => !catalog.has(k)) && waitTries < 12) { waitTries++; setTimeout(update, 500); return; }
-      if (S.editMode && !draft) draft = L.clone(layout || L.fromCatalog(structure));
+      if (S.editMode && !draft) { draft = L.clone(freshDraft || !layout ? L.fromCatalog(structure) : layout); freshDraft = false; }
       if (S.editMode) layout = draft;
       const container = detected.container;
       const root = el("div", { id: "pc-root" });
@@ -488,19 +494,7 @@
   function passThrough(node) {
     for (let e = node.parentElement; e && e !== mounted.container; e = e.parentElement) if (!e.hasAttribute("data-pc-pass")) e.setAttribute("data-pc-pass", "");
   }
-  // An element fixed on the right (a side panel, given by the site rule "avoid") keeps the layout to its left.
-  function fitBeside() {
-    const r = siteRule();
-    let right = 0;
-    const ep = r && r.avoid && document.querySelector(r.avoid);
-    if (ep) {
-      const er = ep.getBoundingClientRect();
-      const wr = mounted.root.parentElement.getBoundingClientRect();
-      if (er.width > 0 && er.height > 0 && er.left < wr.right - 1 && er.right > wr.left) right = Math.max(0, Math.round(wr.right - er.left));
-    }
-    const v = right + "px";
-    if (mounted.root.style.marginRight !== v) mounted.root.style.marginRight = v;
-  }
+  function fitBeside() { /* reserved: automatic avoidance of panels floating over the layout */ }
   function tick() {
     rafId = 0;
     if (!mounted || !contextAlive) return;
@@ -651,6 +645,7 @@
       el("button", { text: "+ " + t("addPanel"), onclick: (e) => openAddMenu(e.currentTarget) }),
       el("button", { text: "+ " + t("addColumn"), onclick: () => edit(L.addColumn(draft, 320)) }),
       el("button", { text: "↕ " + t("gapButton"), onclick: openGapSettings }),
+      el("button", { id: "pc-unit-btn", text: "▣ " + t("widgetUnit"), onclick: () => openPicker() }),
       el("span", { class: "pc-sep" }),
       el("button", { text: t("export"), onclick: exportLayout }),
       el("button", { text: t("import"), onclick: importLayout }),
@@ -705,6 +700,8 @@
 
   async function saveEdit() {
     const layout = L.validate(draft).layout;
+    const rule = siteRule();
+    if (rule && rule.container) layout.site = { container: rule.container, level: rule.level }; else delete layout.site;
     draft = null;
     const sites = Object.assign({}, S.sites);
     sites[SITE] = Object.assign({}, site(), { on: true, userLayout: layout, customized: true, baseOrgVersion: (S.orgConfig && S.orgConfig.version) || "" });
@@ -917,6 +914,109 @@
     });
   }
 
+  // ---------- widget level picker ----------
+  // Shows the widgets found on the page (outlines over the original page) and lets the user make them bigger
+  // (one level up in the page tree), smaller (one level down) or click one widget as a sample. The choice is
+  // kept as { container: generated selector, level } for this page and saved with the layout.
+  let picker = null, pickerShown = false, freshDraft = false;
+  function pickWidgets() { return picker.container && picker.container.isConnected ? D.atLevel(picker.container, picker.level) : []; }
+  function openPicker() {
+    if (picker) return;
+    unmount(); removeToolbar(); probe();
+    const r = D.detect(document, siteRule());
+    picker = { container: r ? r.container : null, level: r ? r.level : 1, framework: r ? r.framework : "", sampling: false, hover: null, raf: 0 };
+    const layer = el("div", { id: "pc-pick" });
+    const info = el("span", { class: "pc-pick-info" });
+    const bar = el("div", { id: "pc-pickbar" }, [
+      el("b", { text: t("pickTitle") }), info,
+      el("button", { id: "pc-pick-bigger", text: "◀ " + t("pickBigger"), onclick: () => { picker.level = Math.max(1, picker.level - 1); drawPicker(); } }),
+      el("button", { id: "pc-pick-smaller", text: t("pickSmaller") + " ▶", onclick: () => { picker.level += 1; drawPicker(); } }),
+      el("button", { id: "pc-pick-sample", text: t("pickSample"), onclick: () => { picker.sampling = !picker.sampling; drawPicker(); } }),
+      el("button", { id: "pc-pick-auto", text: t("pickAuto"), onclick: () => {
+        const a = D.detect(document, null);
+        if (a) { picker.container = a.container; picker.level = a.level; picker.auto = true; } drawPicker(); } }),
+      el("span", { class: "pc-sep" }),
+      el("button", { id: "pc-pick-cancel", text: t("cancel"), onclick: () => closePicker(false) }),
+      el("button", { id: "pc-pick-apply", class: "pc-primary", text: t("pickApply"), onclick: () => closePicker(true) }),
+    ]);
+    picker.layer = layer; picker.bar = bar; picker.info = info;
+    document.body.append(layer, bar);
+    document.addEventListener("mousemove", pickMove, true);
+    document.addEventListener("click", pickClick, true);
+    const loop = () => { if (!picker) return; drawPicker(); picker.raf = requestAnimationFrame(loop); };
+    picker.raf = requestAnimationFrame(loop);
+  }
+  function drawPicker() {
+    if (!picker) return;
+    const ws = pickWidgets();
+    const box = (r, cls, label) => {
+      const b = el("div", { class: cls, style: { left: r.left + "px", top: r.top + "px", width: r.width + "px", height: r.height + "px" } });
+      if (label) b.append(el("span", { text: label }));
+      return b;
+    };
+    const kids = [];
+    if (picker.container) kids.push(box(picker.container.getBoundingClientRect(), "pc-pick-area"));
+    ws.forEach((w, i) => {
+      const tt = D.titleOf(w);
+      kids.push(box(w.getBoundingClientRect(), "pc-pick-w", (i + 1) + ". " + (tt.text || w.getAttribute("data-pc-c") || t("widget"))));
+    });
+    if (picker.sampling && picker.hover) kids.push(box(picker.hover.getBoundingClientRect(), "pc-pick-hover"));
+    picker.layer.replaceChildren(...kids);
+    picker.info.textContent = picker.sampling ? t("pickSampleHint") : t("pickInfo", [String(ws.length), picker.framework || t("noFramework")]);
+    picker.bar.querySelector("#pc-pick-bigger").disabled = picker.level <= 1;
+    picker.bar.querySelector("#pc-pick-smaller").disabled = !picker.container || D.atLevel(picker.container, picker.level + 1).length === 0;
+    picker.bar.querySelector("#pc-pick-sample").classList.toggle("pc-on", picker.sampling);
+    picker.bar.querySelector("#pc-pick-apply").disabled = ws.length === 0;
+    try { document.documentElement.setAttribute("data-pc-pick", picker.level + ":" + ws.length); } catch (_e) { /* ignore */ }
+  }
+  function pickTarget(e) {
+    let n = e.target;
+    if (!n || n.closest("#pc-pickbar")) return null;
+    // snap to the nearest framework component root or box
+    for (let x = n, i = 0; x && x !== document.body && i < 4; x = x.parentElement, i++) if (x.hasAttribute && x.hasAttribute("data-pc-c") && D.isBox(x)) return x;
+    for (let x = n; x && x !== document.body; x = x.parentElement) if (D.isBox(x)) return x;
+    return null;
+  }
+  function pickMove(e) { if (picker && picker.sampling) picker.hover = pickTarget(e); }
+  function pickClick(e) {
+    if (!picker || e.target.closest("#pc-pickbar")) return;
+    e.preventDefault(); e.stopPropagation();
+    if (!picker.sampling) return;
+    const target = pickTarget(e);
+    const r = target && D.ruleFromSample(target);
+    if (!r) { toast(t("pickNone")); return; }
+    picker.container = r.container; picker.level = r.level; picker.sampling = false; picker.hover = null; picker.auto = false;
+    drawPicker();
+  }
+  async function closePicker(apply) {
+    if (!picker) return;
+    const p = picker;
+    cancelAnimationFrame(p.raf);
+    document.removeEventListener("mousemove", pickMove, true);
+    document.removeEventListener("click", pickClick, true);
+    p.layer.remove(); p.bar.remove();
+    document.documentElement.removeAttribute("data-pc-pick");
+    if (apply && p.container) {
+      const container = p.container;
+      const sel = D.cssPath(container);
+      let ok = false; try { ok = document.querySelector(sel) === container; } catch (_e) { ok = false; }
+      const rule = ok ? { container: sel, level: p.level } : null;
+      if (!ok) toast(t("pickNoSelector"));
+      const before = JSON.stringify(siteRule());
+      const sites = Object.assign({}, S.sites);
+      const cur = Object.assign({}, site(), { on: true });
+      if (rule) cur.rule = rule; else delete cur.rule;
+      sites[SITE] = cur;
+      S.sites = sites;
+      if (JSON.stringify(siteRule()) !== before || !draft) { draft = null; freshDraft = true; } // widgets changed: the editor starts again from the page
+      picker = null;
+      await storageSet({ sites });
+    } else {
+      picker = null;
+    }
+    update();
+  }
+
   // ---------- wiring ----------
   document.addEventListener("keydown", (e) => {
     if (!S.editMode || !mounted) return;
@@ -929,7 +1029,7 @@
     for (const k of KEYS) if (k in changes) { S[k] = changes[k].newValue; relevant = true; }
     if (!relevant) return;
     gateEdit();
-    if ("editMode" in changes && !S.editMode) draft = null;
+    if ("editMode" in changes && !S.editMode) { draft = null; if (picker) { closePicker(false); return; } }
     if ("enabled" in changes && S.enabled === undefined) S.enabled = true;
     if (!S.sites) S.sites = {};
     waitTries = 0;
@@ -941,7 +1041,7 @@
   let pending = false, lastLook = 0;
   const observer = new MutationObserver((list) => {
     if (pending || !active()) return;
-    if (list.every((m) => m.target.closest && m.target.closest("#pc-root, #pc-toolbar, .pc-menu"))) return;
+    if (list.every((m) => m.target.closest && m.target.closest("#pc-root, #pc-toolbar, .pc-menu, #pc-pick, #pc-pickbar"))) return;
     pending = true;
     requestAnimationFrame(() => {
       pending = false;

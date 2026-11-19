@@ -1,8 +1,8 @@
 // Portal Customizer widget detection (content script world).
 // Finds the main multi-column area of a portal page and the widgets (panels, cards, rows) in it.
 // Framework component roots marked by the probe (data-pc-c) are preferred as widgets; pages without a known
-// framework fall back to the plain DOM box structure. A site rule ({container, widget, title, pause}) given by
-// the organization layout overrides the automatic choice.
+// framework fall back to the plain DOM box structure. A widget rule picked by the user in edit mode
+// ({container: generated selector, level: depth of the widgets below it}) replaces the automatic choice.
 (function (root) {
   "use strict";
   const MIN_W = 100, MIN_H = 40, COL_TOL = 24, MAX_SCAN = 15000;
@@ -97,9 +97,74 @@
     };
   }
 
+  // ---------- widget level (rule picked by the user) ----------
+  // Boxes exactly n levels below the container.
+  function atLevel(container, n) {
+    let cur = [container];
+    for (let i = 0; i < n; i++) { const next = []; for (const e of cur) for (const k of e.children) if (k.id !== "pc-root") next.push(k); cur = next; if (cur.length > 4000) break; }
+    return cur.filter(isBox);
+  }
+  function depthOf(container, el) { let d = 0; for (let e = el; e && e !== container; e = e.parentElement) d++; return d; }
+  // most common depth of the widgets below the container (the level the automatic choice used)
+  function levelOf(container, list) {
+    const count = new Map();
+    for (const w of list) { const d = depthOf(container, w); count.set(d, (count.get(d) || 0) + 1); }
+    let best = 1, n = -1; for (const [d, c] of count) if (c > n) { best = d; n = c; }
+    return best;
+  }
+  function describeLevel(container, level, vw, vh) {
+    const ws = atLevel(container, level);
+    const rs = ws.map(rectOf);
+    const cr = rectOf(container);
+    const area = Math.max(1, cr.width * cr.height);
+    return { node: container, list: ws, rects: rs, level, widgets: ws.length,
+      columns: groupColumns(rs.map((r) => ({ left: r.left, top: r.top, width: r.width, height: r.height }))).length,
+      areaFrac: (cr.width * Math.min(cr.height, vh * 2)) / Math.max(1, vw * vh),
+      coverage: rs.reduce((x, r) => x + r.width * r.height, 0) / area,
+      compFrac: ws.length ? ws.filter((w) => w.hasAttribute("data-pc-c")).length / ws.length : 0 };
+  }
+  // The user clicked one widget: find the container (an ancestor) and level that give the best widget set
+  // containing it, scored like the automatic choice (two columns are not required here).
+  function ruleFromSample(el) {
+    const vw = innerWidth, vh = innerHeight;
+    let best = null, bestScore = 0;
+    let a = el.parentElement, d = 1;
+    while (a && a !== document.documentElement && d <= 10) {
+      const x = describeLevel(a, d, vw, vh);
+      if (x.list.includes(el) && x.widgets >= 2) {
+        // the same widgets seen from a bigger ancestor: keep the nearest container
+        const same = best && best.list.length === x.list.length && x.list.every((w) => best.list.includes(w));
+        const s = Math.min(1, x.areaFrac) * Math.min(x.widgets, 16) * (0.5 + x.compFrac) * Math.min(1, x.coverage + 0.2);
+        if (!same && s > bestScore * 1.0001) { best = x; bestScore = s; }
+      }
+      a = a.parentElement; d++;
+    }
+    return best ? { container: best.node, level: best.level, count: best.widgets } : null;
+  }
+  // A selector that finds this element again: a stable id, else a short path of tags and stable classes.
+  function cssPath(el) {
+    const esc = (v) => (typeof CSS !== "undefined" && CSS.escape ? CSS.escape(v) : v);
+    const stableId = (id) => id && !/\d{3,}|^\d|[:]/.test(id);
+    const stableClass = (c) => !/^(pc-|svelte-|css-|sc-|jsx-|ng-|v-)/.test(c) && !/[0-9a-f]{6,}|\d{2,}|__[a-z0-9]{5,}$/i.test(c)
+      && !/^(active|on|open|selected|hover|focus|show|hide|hidden|is-|has-)/.test(c);
+    const unique = (sel) => { try { return document.querySelectorAll(sel).length === 1; } catch (_e) { return false; } };
+    if (stableId(el.id) && unique("#" + esc(el.id))) return "#" + esc(el.id);
+    const parts = [];
+    for (let e = el; e && e.nodeType === 1 && e !== document.documentElement; e = e.parentElement) {
+      if (e !== el && stableId(e.id) && unique("#" + esc(e.id))) { parts.unshift("#" + esc(e.id)); break; }
+      let part = e.tagName.toLowerCase();
+      const cls = [...e.classList].filter(stableClass).slice(0, 2);
+      if (cls.length) part += "." + cls.map(esc).join(".");
+      const p = e.parentElement;
+      if (p && [...p.children].filter((x) => { try { return x.matches(part); } catch (_e) { return false; } }).length > 1) part += ":nth-child(" + ([...p.children].indexOf(e) + 1) + ")";
+      parts.unshift(part);
+      if (e === document.body || unique(parts.join(" > "))) break;
+    }
+    return parts.join(" > ");
+  }
+
   function titleOf(node, rule) {
     const pick = (e) => (e && (e.textContent || "").replace(/\s+/g, " ").trim().slice(0, 60)) || "";
-    if (rule && rule.title) { const e = node.querySelector(rule.title); if (pick(e)) return { text: pick(e), el: e }; }
     const top = rectOf(node).top;
     for (const sel of ["h1,h2,h3,h4,h5,h6", "[role=heading]", "[class*='title' i]", "[class*='header' i]", "[class*='head' i]", "legend,caption,strong,b"]) {
       for (const e of node.querySelectorAll(sel)) {
@@ -116,8 +181,11 @@
 
   function findContainer(doc, rule) {
     if (rule && rule.container) {
-      const c = doc.querySelector(rule.container);
-      return c ? describe(c, innerWidth, innerHeight) : null;
+      let c = null;
+      try { c = doc.querySelector(rule.container); } catch (_e) { c = null; }
+      if (!c) return null;
+      if (rule.level) return describeLevel(c, rule.level, innerWidth, innerHeight);
+      return describe(c, innerWidth, innerHeight);
     }
     const vw = innerWidth, vh = innerHeight;
     let best = null, bestScore = 0, seen = 0;
@@ -139,12 +207,8 @@
   function detect(doc, rule) {
     const d = findContainer(doc, rule);
     if (!d) return null;
-    let list = d.list, rects = d.rects;
-    if (rule && rule.widget) {
-      list = [...d.node.querySelectorAll(rule.widget)].filter((w) => !w.parentElement.closest(rule.widget) && isBox(w));
-      rects = list.map(rectOf);
-      if (!list.length) return null;
-    }
+    const list = d.list, rects = d.rects;
+    if (!list.length) return null;
     const groups = groupColumns(rects.map((r) => ({ left: r.left, top: r.top, width: r.width, height: r.height })));
     const widths = groups.map((g) => Math.round(Math.max(...g.map((i) => rects[i].width))));
     const widest = widths.indexOf(Math.max(...widths));
@@ -161,10 +225,10 @@
     });
     columns.forEach((c, i) => { c.flex = i === widest; });
     const fw = doc.documentElement.getAttribute("data-pc-fw") || "";
-    return { container: d.node, columns, framework: fw, mode: rule && (rule.container || rule.widget) ? "rule" : d.compFrac > 0 ? "framework" : "dom" };
+    return { container: d.node, columns, framework: fw, mode: rule && rule.container ? "rule" : d.compFrac > 0 ? "framework" : "dom", level: d.level || levelOf(d.node, list) };
   }
 
-  const api = { groupColumns, scoreOf, detect, titleOf };
+  const api = { groupColumns, scoreOf, detect, titleOf, atLevel, levelOf, ruleFromSample, cssPath, describeLevel, isBox };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.PCDetect = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

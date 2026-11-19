@@ -113,7 +113,7 @@ async function fetchOrg() {
     if (!r.ok) throw new Error(r.error);
     const version = r.layout.version || PCLayout.hash(text);
     const raw = JSON.parse(text);
-    const orgConfig = { url, managed, version, name: r.layout.name || "", layout: r.layout, match: siteList(raw.match), site: siteRuleOf(raw.site), fetchedAt: Date.now(), error: null };
+    const orgConfig = { url, managed, version, name: r.layout.name || "", layout: r.layout, match: siteList(raw.match), site: siteRuleOf(raw.site) || r.layout.site || null, fetchedAt: Date.now(), error: null };
     // Avoid storage churn (and page re-renders) when nothing changed.
     if (!prev || prev.version !== version || prev.url !== url || prev.error || (prev.layout && prev.layout.refreshMinutes) !== r.layout.refreshMinutes
       || JSON.stringify(prev.match) !== JSON.stringify(orgConfig.match) || JSON.stringify(prev.site) !== JSON.stringify(orgConfig.site)) await chrome.storage.local.set({ orgConfig });
@@ -128,18 +128,13 @@ async function fetchOrg() {
   }
 }
 
-// Pages the organization layout applies to (address prefixes) and the optional site rule (CSS selectors that
-// override automatic detection: container, widget, title, pause, avoid).
+// Pages the organization layout applies to (address prefixes) and the widget rule saved with the layout
+// (container + level, picked by an administrator in edit mode).
 function siteList(v) {
   const items = Array.isArray(v) ? v : String(v || "").split(/[\s,]+/);
   return items.map((x) => String(x).trim()).filter((x) => /^https?:\/\//i.test(x)).slice(0, 50);
 }
-function siteRuleOf(v) {
-  if (!v || typeof v !== "object") return null;
-  const out = {};
-  for (const k of ["container", "widget", "title", "pause", "avoid"]) if (typeof v[k] === "string" && v[k].trim()) out[k] = v[k].trim().slice(0, 300);
-  return Object.keys(out).length ? out : null;
-}
+function siteRuleOf(v) { return PCLayout.widgetRule(v); }
 
 // ---------- where the content scripts run ----------
 // Only on pages the user turned on (popup "Customize this page") and pages named by the organization layout,

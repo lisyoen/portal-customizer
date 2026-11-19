@@ -100,8 +100,30 @@ for (const fw of ["vue3", "vue2", "react", "plain"]) {
   check(`[${fw}] names the framework`, EXPECT_FW[fw] ? (fwAttr || "").split(",").includes(EXPECT_FW[fw]) : !fwAttr, String(fwAttr));
   if (fw !== "plain") check(`[${fw}] marks component roots`, (await page.locator(".card[data-pc-c]").count()) === 6, String(await page.locator(".card[data-pc-c]").count()));
 
+  // first edit: the widget level picker opens over the original page
   await store({ editMode: true });
+  await page.waitForSelector("#pc-pickbar", { timeout: 5000 }).catch(() => {});
+  const pickState = () => page.evaluate(() => document.documentElement.getAttribute("data-pc-pick"));
+  await page.waitForTimeout(200);
+  check(`[${fw}] picker opens on the first edit with the widgets found`, (await page.locator("#pc-pickbar").count()) === 1 && (await pickState()) === "2:6" && (await page.locator("#pc-pick .pc-pick-w").count()) === 6, String(await pickState()));
+  await page.click("#pc-pick-bigger"); await page.waitForTimeout(150);
+  check(`[${fw}] bigger: the columns become the widgets`, (await pickState()) === "1:3", String(await pickState()));
+  await page.click("#pc-pick-smaller"); await page.waitForTimeout(150);
+  check(`[${fw}] smaller: back to the cards`, (await pickState()) === "2:6", String(await pickState()));
+  if (fw === "vue3") {
+    await page.click("#pc-pick-bigger"); await page.waitForTimeout(100);
+    await page.click("#pc-pick-sample");
+    const body = page.locator(".card .body").filter({ hasText: "News body" });
+    await body.hover(); await page.waitForTimeout(100);
+    check("[vue3] sample mode outlines the element under the pointer", (await page.locator("#pc-pick .pc-pick-hover").count()) === 1);
+    await body.click(); await page.waitForTimeout(150);
+    check("[vue3] clicking one card picks all cards at its level", (await pickState()) === "2:6", String(await pickState()));
+  }
+  await page.click("#pc-pick-apply");
   await page.waitForSelector("#pc-root.pc-edit", { timeout: 5000 }).catch(() => {});
+  const rule = (await getSite(url)).rule;
+  const ruleOk = rule && rule.level === 2 && await page.evaluate((sel) => { const e = document.querySelector(sel); return !!e && e.classList.contains("grid"); }, rule.container);
+  check(`[${fw}] applying keeps a generated rule for this page`, ruleOk, JSON.stringify(rule));
   const cols = await page.locator("#pc-root .pc-col").count(), panels = await page.locator("#pc-root .pc-panel").count();
   check(`[${fw}] edit mode mirrors the page: 3 columns, 6 widgets`, cols === 3 && panels === 6, `${cols} cols ${panels} panels`);
   const titles = await panelTitles(page);
@@ -111,6 +133,7 @@ for (const fw of ["vue3", "vue2", "react", "plain"]) {
   await page.waitForTimeout(500);
   const saved = await getSite(url);
   check(`[${fw}] save keeps the layout for this page`, saved.customized && saved.userLayout && saved.userLayout.columns.length === 3, JSON.stringify(saved).slice(0, 120));
+  check(`[${fw}] the saved layout carries the widget rule`, saved.userLayout.site && saved.userLayout.site.level === 2 && saved.userLayout.site.container === rule.container, JSON.stringify(saved.userLayout.site));
   check(`[${fw}] view mode after save`, (await page.locator("#pc-root").count()) === 1 && (await page.locator("#pc-root.pc-edit").count()) === 0);
   let bad = await alignedAll(page, TITLES);
   check(`[${fw}] every widget sits on its slot`, !bad.length, JSON.stringify(bad));
@@ -154,6 +177,17 @@ for (const fw of ["vue3", "vue2", "react", "plain"]) {
     check("[vue3] popup shows this page and what was found", addr === url && /vue3/.test(st) && /6/.test(st), JSON.stringify({ addr, st }));
     check("[vue3] popup offers to stop customizing", await pp.locator("#pageOff").isVisible() && await pp.locator("#pageOn").isHidden());
     await pp.close();
+    // the toolbar reopens the picker; cancelling keeps the layout
+    await store({ editMode: true });
+    await page.waitForSelector("#pc-unit-btn", { timeout: 5000 }).catch(() => {});
+    await page.click("#pc-unit-btn");
+    await page.waitForSelector("#pc-pickbar", { timeout: 3000 }).catch(() => {});
+    check("[vue3] toolbar ▣ reopens the picker at the saved level", (await pickState()) === "2:6", String(await pickState()));
+    await page.click("#pc-pick-cancel");
+    await page.waitForSelector("#pc-root.pc-edit", { timeout: 5000 }).catch(() => {});
+    check("[vue3] cancel returns to the editor", (await page.locator("#pc-pickbar").count()) === 0 && (await page.locator("#pc-root .pc-panel").count()) >= 6);
+    await store({ editMode: false });
+    await page.waitForTimeout(500);
     // narrow window: still aligned
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.waitForTimeout(500);

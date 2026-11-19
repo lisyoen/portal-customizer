@@ -44,7 +44,7 @@ async function setSite(patch) {
 const mine = { schema: 1, columns: [{ id: "c1", width: 500, panels: [
   { id: "v1", type: "video", title: "Clip", height: 200, src: server + "/media/none.mp4", autoplay: true, muted: true, loop: true },
   { id: "h1", type: "html", title: "Notice", height: 150, html: "<b>Hello</b> <a href='https://example.com' onclick='x()'>link</a><script>window.bad=1</script><img src='javascript:x'>" }] },
-  { id: "c2", flex: 1, panels: [{ id: "pp", type: "native", key: "title:Mail", title: "Mail" }] }] };
+  { id: "c2", flex: 1, panels: [{ id: "pp", type: "native", key: "title:Mail", title: "Mail" }] }], site: { container: "main.main > div.grid", level: 2 } };
 await setSite({ on: true, userLayout: mine, customized: true });
 await popup.evaluate(() => chrome.runtime.sendMessage({ type: "syncScripts" }));
 const page = await ctx.newPage();
@@ -81,9 +81,9 @@ const pub = await (await fetch(server + "/portal-customizer.json")).json();
 check("published json has the video and html panels", pub.columns[0].panels.map((p) => p.type).join() === "video,html");
 
 // the admin names the pages the layout applies to
-const putS = await fetch(server + "/api/settings", { method: "PUT", headers: { "Content-Type": "application/json", Authorization: "Bearer " + token }, body: JSON.stringify({ siteMatch: "http://plain.portal.test/home\nhttps://*.example.com/", siteRule: { pause: ".modal-open", bogus: "x" } }) });
+const putS = await fetch(server + "/api/settings", { method: "PUT", headers: { "Content-Type": "application/json", Authorization: "Bearer " + token }, body: JSON.stringify({ siteMatch: "http://plain.portal.test/home\nhttps://*.example.com/", siteRule: { pause: ".modal-open" } }) });
 const pubS = await (await fetch(server + "/portal-customizer.json")).json();
-check("published json carries the pages and the site rule", putS.ok && pubS.match.length === 2 && pubS.match[0] === PAGE && pubS.site && pubS.site.pause === ".modal-open" && !("bogus" in pubS.site), JSON.stringify([pubS.match, pubS.site]));
+check("published json carries the pages and the widget rule sent with the layout (no server selectors)", putS.ok && pubS.match.length === 2 && pubS.match[0] === PAGE && pubS.site && pubS.site.level === 2 && pubS.site.container === "main.main > div.grid" && !("pause" in pubS.site), JSON.stringify([pubS.match, pubS.site]));
 const badS = await fetch(server + "/api/settings", { method: "PUT", headers: { "Content-Type": "application/json", Authorization: "Bearer " + token }, body: JSON.stringify({ siteMatch: "ftp://x" }) });
 check("page addresses must be http(s)", badS.status === 400);
 // staff side: use the server as organization default

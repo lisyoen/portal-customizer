@@ -188,3 +188,20 @@ div.pc-feed-list > .pc-feed-item .pc-feed-meta { margin: 0; white-space: nowrap;
 .pc-html img { max-width: 100%; height: auto; }
 .pc-html a { color: var(--pc-accent); }
 .pc-html table { border-collapse: collapse; } .pc-html td, .pc-html th { border: 1px solid var(--pc-line); padding: 3px 6px; }
+
+/* widget level picker: outlines over the original page and a bar like the edit toolbar */
+#pc-pick { position: fixed; inset: 0; z-index: 2147482990; pointer-events: none; }
+#pc-pick > div { position: fixed; box-sizing: border-box; }
+#pc-pick .pc-pick-area { border: 2px dashed rgba(26, 109, 255, .55); }
+#pc-pick .pc-pick-w { border: 2px solid #1a6dff; background: rgba(26, 109, 255, .08); }
+#pc-pick .pc-pick-w > span { position: absolute; left: 0; top: 0; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  padding: 1px 6px; background: #1a6dff; color: #fff; font: 600 11px/16px system-ui, sans-serif; }
+#pc-pick .pc-pick-hover { border: 2px solid #e8364f; background: rgba(232, 54, 79, .12); }
+#pc-pickbar { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 2147483000; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  max-width: 96vw; padding: 8px 10px; background: #1f2430; color: #fff; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.3); font: 13px/1.2 system-ui, sans-serif; }
+#pc-pickbar button { font: inherit; padding: 5px 10px; border: 1px solid rgba(255,255,255,.25); border-radius: 6px; background: rgba(255,255,255,.08); color: #fff; cursor: pointer; }
+#pc-pickbar button:disabled { opacity: .4; cursor: default; }
+#pc-pickbar button.pc-on { background: #e8364f; border-color: #e8364f; }
+#pc-pickbar button.pc-primary { background: #1a6dff; border-color: #1a6dff; }
+#pc-pickbar .pc-pick-info { color: #c9d1e0; margin-right: 4px; }
+#pc-pickbar .pc-sep { width: 1px; align-self: stretch; background: rgba(255,255,255,.2); }

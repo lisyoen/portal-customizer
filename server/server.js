@@ -88,7 +88,11 @@ function cleanLayout(obj) {
   // the extension validates every field again; here only the shape is checked
   const src = obj && obj.layout && Array.isArray(obj.layout.columns) ? obj.layout : obj;
   if (!src || !Array.isArray(src.columns) || !src.columns.length) throw fail(400, "배치(columns)가 없습니다");
-  return { schema: 1, columns: src.columns, gaps: src.gaps };
+  const out = { schema: 1, columns: src.columns, gaps: src.gaps };
+  // widget rule picked in the extension's edit mode (container selector + level)
+  const r = src.site;
+  if (r && typeof r.container === "string" && r.container.trim() && Number(r.level) >= 1 && Number(r.level) <= 10) out.site = { container: r.container.trim().slice(0, 300), level: Math.round(Number(r.level)) };
+  return out;
 }
 // Pictures and videos uploaded in the extension arrive as data: URLs; store them as media files.
 function extractDataUrls(value, base, by) {
@@ -128,10 +132,10 @@ function published(t) {
   const l = r.layout;
   const refreshMinutes = clientMinutes();
   const st0 = S().settings || {};
-  const version = crypto.createHash("sha1").update(l.id + "|" + l.updatedAt + "|" + refreshMinutes + "|" + JSON.stringify(st0.siteMatch || []) + JSON.stringify(st0.siteRule || {})).digest("hex").slice(0, 12);
+  const version = crypto.createHash("sha1").update(l.id + "|" + l.updatedAt + "|" + refreshMinutes + "|" + JSON.stringify(st0.siteMatch || [])).digest("hex").slice(0, 12);
   const st = S().settings || {};
   const out = { schema: 1, version, name: l.name, refreshMinutes, match: st.siteMatch || [], columns: l.layout.columns, gaps: l.layout.gaps, publishedBy: "portal-customizer-server", layoutId: l.id, reason: r.reason };
-  if (st.siteRule && Object.keys(st.siteRule).length) out.site = st.siteRule;
+  if (l.layout.site) out.site = l.layout.site; // widget rule saved with the layout in the extension
   return out;
 }
 
@@ -437,11 +441,7 @@ route("PUT", "/api/settings", async (req) => { const a = need(req, "admin"); con
     if (bad) throw fail(400, "적용할 화면 주소는 http(s):// 로 시작해야 합니다: " + bad);
     s.siteMatch = list.slice(0, 50);
   }
-  if ("siteRule" in b) {
-    const r = {};
-    for (const k of ["container", "widget", "title", "pause", "avoid"]) { const v = str(b.siteRule && b.siteRule[k], 300).trim(); if (v) r[k] = v; }
-    s.siteRule = r;
-  }
+  if ("siteRule" in b) delete s.siteRule; // selectors are no longer set on the server (picked in the extension)
   store.audit(a.user, "설정 변경", Object.keys(b).join(",")); store.save(); return { settings: s }; });
 
 // update
