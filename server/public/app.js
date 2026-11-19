@@ -32,6 +32,20 @@ async function api(method, url, body, raw) {
   return data;
 }
 function toast(msg) { const t = h("div", { class: "toast", text: msg }); document.body.append(t); setTimeout(() => t.remove(), 2600); }
+
+// Copy text: the Clipboard API needs a secure page (https or localhost); over plain http fall back to a
+// hidden textarea + execCommand, and as a last resort show the text selected for Ctrl+C.
+async function copyText(text) {
+  try { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); toast("복사했습니다"); return true; } } catch (_e) { /* fall back */ }
+  const ta = document.createElement("textarea");
+  ta.value = text; ta.setAttribute("readonly", ""); ta.style.cssText = "position:fixed;left:-9999px;top:0;opacity:0";
+  document.body.append(ta); ta.select(); ta.setSelectionRange(0, text.length);
+  let ok = false; try { ok = document.execCommand("copy"); } catch (_e) { ok = false; }
+  ta.remove();
+  if (ok) { toast("복사했습니다"); return true; }
+  window.prompt("Ctrl+C 로 복사하세요", text);
+  return false;
+}
 async function guard(fn) { try { return await fn(); } catch (e) { toast(e.message); return null; } }
 function fmt(iso) { if (!iso) return "-"; const d = new Date(iso); return d.toLocaleString("ko-KR", { year: "2-digit", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }); }
 function toLocalInput(iso) { if (!iso) return ""; const d = new Date(iso); const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; }
@@ -249,7 +263,7 @@ async function pageLayouts() {
   const pub = location.origin + "/portal-customizer.json";
   shell("layouts", [
     h("h1", {}, ["배치", h("button", { class: "primary small", text: "JSON 파일로 추가", onclick: importLayout })]),
-    h("div", { class: "card" }, [h("div", { class: "row" }, [h("b", { text: "배포 주소" }), h("code", { text: pub }), h("button", { class: "small", text: "복사", onclick: () => { navigator.clipboard.writeText(pub); toast("복사했습니다"); } }),
+    h("div", { class: "card" }, [h("div", { class: "row" }, [h("b", { text: "배포 주소" }), h("code", { text: pub }), h("button", { class: "small", id: "copyPub", text: "복사", onclick: () => copyText(pub) }),
       h("a", { href: "/portal-customizer.json", target: "_blank", text: "지금 게시본 보기" })]),
       h("div", { class: "hint", text: "직원들은 확장 팝업의 '사내 기본 배치'에 이 주소를 넣습니다. 관리자는 확장에서 관리자 로그인 후 '관리 서버로 전송'으로 배치를 올립니다." })]),
     h("div", { class: "card" }, [h("div", { class: "row" }, [h("b", { text: "앞으로 30일 노출 일정" }), h("span", { class: "muted", text: "예약 배치가 공개 기간에는 기본 배치보다 먼저 노출되고, 기간이 겹치면 목록에서 위에 있는 배치가 노출됩니다." })]), timeline]),

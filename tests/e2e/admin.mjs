@@ -125,6 +125,13 @@ await con.fill("input[type=password]", "boss-pass-123");
 await con.click("button.primary");
 await con.waitForSelector("text=Spring layout", { timeout: 5000 });
 check("admin console lists the layout", true);
+// copy the distribution address on a plain-http page (no Clipboard API): execCommand fallback
+await ctx.grantPermissions(["clipboard-read", "clipboard-write"], { origin: server });
+await con.evaluate(() => { Object.defineProperty(window, "isSecureContext", { get: () => false, configurable: true }); });
+await con.click("#copyPub");
+await con.waitForTimeout(300);
+const copied = await con.evaluate(() => navigator.clipboard.readText());
+check("copy button works without the Clipboard API (http)", /^http:\/\/[^/]+\/portal-customizer\.json$/.test(copied), copied);
 await con.click("a:has-text('Spring layout')");
 await con.waitForSelector(".col-card");
 check("layout editor shows columns and panels", (await con.locator(".col-card").count()) === 2 && (await con.locator(".panel-card").count()) === 3);
