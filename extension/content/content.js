@@ -25,7 +25,9 @@
   }
   function active() { return S.enabled && (site().on || orgApplies()); }
   // Edit mode is for administrators only: without an admin login (popup) the page never enters it.
-  function gateEdit() { if (!S.adminToken && S.editMode) { S.editMode = false; draft = null; } }
+  // One console line per state change, so "nothing happens" can be told apart from "not running here".
+  function say(msg) { if (say.last === msg) return; say.last = msg; try { console.info("[Portal Customizer " + chrome.runtime.getManifest().version + "] " + msg); } catch (_e) { /* extension reloaded */ } }
+  function gateEdit() { if (!S.adminToken && S.editMode) { say("edit mode needs an administrator login"); S.editMode = false; draft = null; } }
   let catalog = new Map();       // key -> { key, title, titleEl, comp, node, height }
   let lastStructure = null;      // columns found by the last detection (the page as it was)
   let detected = null;           // { container, framework, mode }
@@ -259,7 +261,8 @@
   function update() {
     if (!contextAlive) return;
     if (picker) { uncloak(); return; } // choosing the widget level: the page stays as it is
-    if (!active()) { uncloak(); unmount(); return; }
+    if (!active()) { say(!S.enabled ? "off (Portal Customizer turned off)" : "off on this page"); uncloak(); unmount(); return; }
+    if (S.editMode) say("edit mode: rule=" + (siteRule() ? JSON.stringify(siteRule()) : "none") + " layout=" + (effectiveLayout() ? (site().customized ? "mine" : "organization") : "none"));
     // first edit of a page without a widget rule or layout: let the user confirm the widget level first
     // first edit of a page whose widget unit was never confirmed (also when an organization layout already
     // applies, e.g. one made before the widget unit existed): let the user confirm it first
@@ -282,6 +285,7 @@
       const structure = scan();
       if (!structure || !detected) {
         // edit mode must never silently do nothing: no widgets found → the picker (choose a sample widget)
+        say("no widgets found" + (siteRule() ? " with the widget unit " + JSON.stringify(siteRule()) : ""));
         if (S.editMode && !draft) {
           if (!pickerShown) { pickerShown = true; uncloak(); openPicker(); }
           else if (!update.told) { update.told = true; toast(t("editNoWidgets")); }
@@ -306,6 +310,7 @@
       container.parentElement.insertBefore(root, container);
       container.setAttribute("data-pc-container", detected.mode);
       mounted = { container, root };
+      say("layout shown: " + catalog.size + " widgets (" + detected.mode + (detected.framework ? ", " + detected.framework : "") + ")" + (missingKeys.length ? ", not on this page: " + missingKeys.length : "") + (S.editMode ? ", editing" : ""));
       document.documentElement.classList.add("pc-active");
       rememberCloak(container);
       attachEditHandlers(root);
@@ -1086,6 +1091,7 @@
   function pickWidgets() { return picker.container && picker.container.isConnected ? D.atLevel(picker.container, picker.level) : []; }
   function openPicker() {
     uncloak(); // the picker looks at the page as it is
+    say("widget unit picker opened");
     if (picker) return;
     unmount(); removeToolbar(); probe();
     const r = D.detect(document, siteRule());
@@ -1239,6 +1245,7 @@
     });
   });
 
+  say("running on " + SITE);
   chrome.storage.local.get(KEYS).then((r) => {
     Object.assign(S, r);
     if (S.enabled === undefined) S.enabled = true;
