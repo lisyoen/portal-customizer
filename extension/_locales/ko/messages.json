@@ -1,0 +1,732 @@
+{
+  "extName": {
+    "message": "Portal Customizer"
+  },
+  "extDescription": {
+    "message": "포털·대시보드 화면을 원하는 대로 배치하고 꾸밉니다. Vue·React 등 화면의 위젯을 찾아 끌어놓기로 옮기고, 이미지·링크·메모·웹페이지 패널을 추가합니다."
+  },
+  "badgeTitleUpdate": {
+    "message": "Portal Customizer $p1$ 버전이 나왔습니다. 팝업에서 업데이트하세요.",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "updatedTo": {
+    "message": "$p1$ 버전으로 업데이트했습니다.",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "dragColumn": {
+    "message": "끌어서 컬럼 이동"
+  },
+  "fillWidth": {
+    "message": "남은 폭 채움"
+  },
+  "toggleFill": {
+    "message": "고정 폭 / 남은 폭 채움 전환"
+  },
+  "deleteColumn": {
+    "message": "컬럼 삭제"
+  },
+  "lastColumn": {
+    "message": "컬럼은 하나 이상 있어야 합니다."
+  },
+  "confirmDeleteColumn": {
+    "message": "이 컬럼과 안의 패널을 삭제할까요?"
+  },
+  "type_native": {
+    "message": "화면 위젯"
+  },
+  "type_image": {
+    "message": "이미지"
+  },
+  "type_links": {
+    "message": "링크 모음"
+  },
+  "type_memo": {
+    "message": "메모"
+  },
+  "type_iframe": {
+    "message": "iframe (게시판·웹 페이지)"
+  },
+  "panelSettings": {
+    "message": "패널 설정"
+  },
+  "showPanel": {
+    "message": "패널 보이기"
+  },
+  "hidePanel": {
+    "message": "패널 숨기기"
+  },
+  "deletePanel": {
+    "message": "패널 삭제"
+  },
+  "emptyImage": {
+    "message": "이미지가 없습니다. ⚙ 에서 이미지를 지정하세요."
+  },
+  "emptyLinks": {
+    "message": "링크가 없습니다. ⚙ 에서 추가하세요."
+  },
+  "memoPlaceholder": {
+    "message": "메모를 입력하세요…"
+  },
+  "emptyIframe": {
+    "message": "주소가 없습니다. ⚙ 에서 입력하세요."
+  },
+  "resizeColumn": {
+    "message": "끌어서 폭 조절"
+  },
+  "resizePanel": {
+    "message": "끌어서 높이 조절, 더블클릭하면 자동"
+  },
+  "editingTitle": {
+    "message": "Portal Customizer · 편집"
+  },
+  "addPanel": {
+    "message": "패널"
+  },
+  "addColumn": {
+    "message": "컬럼"
+  },
+  "export": {
+    "message": "내보내기"
+  },
+  "import": {
+    "message": "가져오기"
+  },
+  "useOrgDefault": {
+    "message": "사내 기본"
+  },
+  "useOriginal": {
+    "message": "원본 배치"
+  },
+  "confirmOriginal": {
+    "message": "편집 중인 배치를 이 화면의 원래 배치로 바꿀까요?"
+  },
+  "cancel": {
+    "message": "취소"
+  },
+  "save": {
+    "message": "저장"
+  },
+  "apply": {
+    "message": "적용"
+  },
+  "customPanels": {
+    "message": "새 패널"
+  },
+  "saved": {
+    "message": "배치를 저장했습니다."
+  },
+  "imported": {
+    "message": "배치를 가져왔습니다. 저장을 눌러야 유지됩니다."
+  },
+  "importFailed": {
+    "message": "가져오지 못했습니다: $p1$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "fieldTitle": {
+    "message": "제목"
+  },
+  "fieldHeight": {
+    "message": "높이(px)"
+  },
+  "auto": {
+    "message": "자동"
+  },
+  "fieldShowHeader": {
+    "message": "제목 표시"
+  },
+  "fieldImageUrl": {
+    "message": "이미지 주소"
+  },
+  "fieldImageFile": {
+    "message": "또는 파일 선택"
+  },
+  "imageFileHint": {
+    "message": "이미지는 이 브라우저에 저장되며 내보내기 파일에 함께 들어갑니다."
+  },
+  "fieldLink": {
+    "message": "클릭하면 열 주소(선택)"
+  },
+  "fieldFit": {
+    "message": "맞춤"
+  },
+  "fitCover": {
+    "message": "패널 채우기(잘림)"
+  },
+  "fitContain": {
+    "message": "전체 보이기"
+  },
+  "fieldBackground": {
+    "message": "배경색(선택)"
+  },
+  "fieldLinks": {
+    "message": "링크(한 줄에 하나)"
+  },
+  "linksHint": {
+    "message": "형식: 제목 | https://주소 | https://이미지 (이미지는 선택, 배너 타일에 사용)"
+  },
+  "fieldNewTab": {
+    "message": "새 탭에서 열기"
+  },
+  "fieldMemoDefault": {
+    "message": "기본 내용"
+  },
+  "memoHint": {
+    "message": "화면에서 메모에 바로 입력할 수 있고, 입력한 내용은 이 브라우저에 저장됩니다."
+  },
+  "fieldPageUrl": {
+    "message": "페이지 주소"
+  },
+  "iframeHint": {
+    "message": "http(s) 주소를 넣습니다. 일부 사이트는 다른 화면 안에 표시되지 않을 수 있습니다."
+  },
+  "nativeHint": {
+    "message": "이 화면에 원래 있던 위젯입니다. 내용은 원래 화면이 그리며, 위젯 제목 숨기기와 높이 조절을 할 수 있습니다."
+  },
+  "enable": {
+    "message": "Portal Customizer 사용"
+  },
+  "editMode": {
+    "message": "편집 모드"
+  },
+  "editHint": {
+    "message": "편집 모드를 켜면 꾸미기를 켠 화면에 편집 도구막대가 나타납니다. 저장하지 않고 끄면 변경 내용은 버려집니다."
+  },
+  "layoutSource": {
+    "message": "현재 배치"
+  },
+  "sourceMine": {
+    "message": "내 배치"
+  },
+  "sourceOrg": {
+    "message": "사내 기본 배치 $p1$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "sourceOriginal": {
+    "message": "원래 배치"
+  },
+  "applyOrg": {
+    "message": "적용"
+  },
+  "resetMine": {
+    "message": "내 배치 지우고 기본 배치 사용"
+  },
+  "confirmResetMine": {
+    "message": "저장한 내 배치를 지울까요?"
+  },
+  "orgNewer": {
+    "message": "새 사내 기본 배치($p1$)가 있습니다.",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "orgDefault": {
+    "message": "사내 기본 배치"
+  },
+  "orgUrlPlaceholder": {
+    "message": "https://intranet.example.com/portal-customizer.json"
+  },
+  "loadOrg": {
+    "message": "불러오기"
+  },
+  "orgNone": {
+    "message": "설정 안 됨. 사내에서 공유하는 배치 파일 주소를 입력하세요."
+  },
+  "orgManaged": {
+    "message": "관리자가 지정한 주소입니다."
+  },
+  "orgError": {
+    "message": "불러오지 못했습니다: $p1$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "orgLoaded": {
+    "message": "버전 $p1$ · 확인 $p2$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      },
+      "p2": {
+        "content": "$2"
+      }
+    }
+  },
+  "orgBadUrl": {
+    "message": "http(s) 주소를 입력하세요."
+  },
+  "orgNoPermission": {
+    "message": "해당 서버 접근이 허용되지 않았습니다."
+  },
+  "updateNow": {
+    "message": "지금 업데이트"
+  },
+  "updating": {
+    "message": "업데이트 중…"
+  },
+  "checkUpdates": {
+    "message": "업데이트 확인"
+  },
+  "updateAvailable": {
+    "message": "$p1$ 버전이 나왔습니다.",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "upToDateVersion": {
+    "message": "최신 버전입니다($p1$).",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "updateCheckFailed": {
+    "message": "업데이트를 확인하지 못했습니다."
+  },
+  "updateHelperMissing": {
+    "message": "업데이트 도우미를 한 번 등록하세요: 확장 폴더의 updater\\install-updater.bat 실행."
+  },
+  "updateFailed": {
+    "message": "업데이트 실패: $p1$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "fieldShowHeaderNative": {
+    "message": "위젯 제목 표시"
+  },
+  "fieldTitleNative": {
+    "message": "편집 화면에 보일 이름"
+  },
+  "titleHidden": {
+    "message": "제목 숨김"
+  },
+  "refresh": {
+    "message": "새로고침"
+  },
+  "fieldRefresh": {
+    "message": "자동 새로고침 주기(분, 0 = 안 함)"
+  },
+  "fieldZoom": {
+    "message": "확대/축소(%)"
+  },
+  "fieldScroll": {
+    "message": "안에서 스크롤 허용"
+  },
+  "exportJson": {
+    "message": "JSON 내보내기"
+  },
+  "exportHint": {
+    "message": "지금 쓰는 배치를 portal-customizer.json 으로 내려받습니다. 사내 웹서버에 올리고 주소를 공유하면 사내 기본 배치로 쓸 수 있습니다."
+  },
+  "exportNothing": {
+    "message": "저장된 배치가 없습니다. 편집 모드에서 배치하고 저장한 뒤 내보내세요."
+  },
+  "exportDone": {
+    "message": "portal-customizer.json 저장됨"
+  },
+  "type_carousel": {
+    "message": "캐러셀 (주요 콘텐츠)"
+  },
+  "type_feed": {
+    "message": "탭 피드 (게시판 모아보기)"
+  },
+  "emptyCarousel": {
+    "message": "슬라이드가 없습니다. ⚙ 에서 추가하세요."
+  },
+  "emptyFeed": {
+    "message": "탭이 없습니다. ⚙ 에서 게시판을 추가하세요."
+  },
+  "feedAll": {
+    "message": "ALL"
+  },
+  "feedMy": {
+    "message": "My"
+  },
+  "feedSort": {
+    "message": "정렬"
+  },
+  "sortDefault": {
+    "message": "기본순"
+  },
+  "sortDate": {
+    "message": "최신순"
+  },
+  "sortTitle": {
+    "message": "제목순"
+  },
+  "feedSearch": {
+    "message": "검색"
+  },
+  "feedNoBookmarks": {
+    "message": "북마크가 없습니다. 게시글의 ☆ 를 누르세요."
+  },
+  "feedNoMatch": {
+    "message": "검색 결과가 없습니다."
+  },
+  "feedLoading": {
+    "message": "게시글을 불러오는 중…"
+  },
+  "untitled": {
+    "message": "제목 없음"
+  },
+  "more": {
+    "message": "더보기"
+  },
+  "bookmark": {
+    "message": "북마크"
+  },
+  "openNewTab": {
+    "message": "새 탭에서 열기"
+  },
+  "copyUrl": {
+    "message": "URL 복사"
+  },
+  "shareMail": {
+    "message": "메일로 공유"
+  },
+  "close": {
+    "message": "닫기"
+  },
+  "siteLink": {
+    "message": "사이트 바로가기"
+  },
+  "writePost": {
+    "message": "글쓰기"
+  },
+  "uploadedImage": {
+    "message": "(업로드한 이미지)"
+  },
+  "addRow": {
+    "message": "추가"
+  },
+  "fieldDisplay": {
+    "message": "표시 방식"
+  },
+  "displayList": {
+    "message": "목록"
+  },
+  "displayBanners": {
+    "message": "배너 타일(이미지 선택)"
+  },
+  "fieldLinkShort": {
+    "message": "링크(선택)"
+  },
+  "fieldSlides": {
+    "message": "슬라이드"
+  },
+  "fieldInterval": {
+    "message": "자동 넘김 간격(초, 0 = 안 함)"
+  },
+  "fieldCaptions": {
+    "message": "슬라이드에 제목 표시"
+  },
+  "fieldLayer": {
+    "message": "링크를 이 화면의 레이어 창으로 열기"
+  },
+  "fieldTabs": {
+    "message": "탭"
+  },
+  "fieldTabName": {
+    "message": "탭 이름"
+  },
+  "fieldTabSource": {
+    "message": "게시판 주소"
+  },
+  "fieldTabSite": {
+    "message": "사이트 바로가기(선택)"
+  },
+  "fieldTabWrite": {
+    "message": "글쓰기 주소(선택)"
+  },
+  "feedHint": {
+    "message": "같은 사이트의 게시판 페이지에서 게시글을 읽어 카드로 보여 줍니다. 다른 사이트 페이지는 그대로 표시됩니다."
+  },
+  "fieldView": {
+    "message": "보기 방식"
+  },
+  "viewCard": {
+    "message": "카드형"
+  },
+  "viewList": {
+    "message": "리스트형"
+  },
+  "fieldFirstTab": {
+    "message": "첫 탭"
+  },
+  "firstTabAuto": {
+    "message": "자동"
+  },
+  "fieldLimit": {
+    "message": "탭당 게시글 수"
+  },
+  "fieldAllTab": {
+    "message": "ALL 탭 표시 (모든 탭 게시글 모아보기)"
+  },
+  "gapButton": {
+    "message": "간격"
+  },
+  "gapSettings": {
+    "message": "패널 간격"
+  },
+  "gapPanelDefault": {
+    "message": "컬럼 안 패널 사이 간격(px)"
+  },
+  "gapColDefault": {
+    "message": "컬럼 사이 간격(px)"
+  },
+  "gapResetOverrides": {
+    "message": "패널·컬럼별로 따로 정한 간격 초기화"
+  },
+  "gapHint": {
+    "message": "편집 모드에서 패널·컬럼 사이의 숫자를 끌면 간격이 바뀝니다. 숫자를 누르면 직접 입력, 더블클릭하면 기본값으로 돌아갑니다. 비우면 기본값."
+  },
+  "gapAbove": {
+    "message": "이 패널 위쪽 간격(px): 숫자 입력·화살표·마우스 휠로 조절, 패널 위 점선 띠를 끌어도 됩니다"
+  },
+  "gapReset": {
+    "message": "기본 간격으로"
+  },
+  "type_video": {
+    "message": "동영상"
+  },
+  "type_html": {
+    "message": "하이퍼텍스트"
+  },
+  "emptyVideo": {
+    "message": "동영상이 없습니다. ⚙ 에서 지정하세요."
+  },
+  "emptyHtml": {
+    "message": "내용이 없습니다. ⚙ 에서 입력하세요."
+  },
+  "fieldVideoUrl": {
+    "message": "동영상 주소(mp4, webm)"
+  },
+  "fieldPoster": {
+    "message": "미리보기 이미지(선택)"
+  },
+  "fieldAutoplay": {
+    "message": "자동 재생"
+  },
+  "fieldMuted": {
+    "message": "음소거"
+  },
+  "fieldLoop": {
+    "message": "반복"
+  },
+  "fieldControls": {
+    "message": "재생 버튼 표시"
+  },
+  "fieldHtml": {
+    "message": "HTML"
+  },
+  "htmlHint": {
+    "message": "서식·목록·표·링크·이미지만 남고 스크립트·스타일 태그는 제거됩니다."
+  },
+  "adminTitle": {
+    "message": "관리자"
+  },
+  "adminLogin": {
+    "message": "관리자 로그인"
+  },
+  "adminServerPlaceholder": {
+    "message": "관리 서버 주소 예: http://서버:9150"
+  },
+  "adminUserPlaceholder": {
+    "message": "아이디"
+  },
+  "adminPassPlaceholder": {
+    "message": "비밀번호"
+  },
+  "adminLoginBtn": {
+    "message": "로그인"
+  },
+  "adminLoginFailed": {
+    "message": "로그인 실패: $p1$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "adminWho": {
+    "message": "$p1$ · $p2$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      },
+      "p2": {
+        "content": "$2"
+      }
+    }
+  },
+  "sendNamePlaceholder": {
+    "message": "배치 이름"
+  },
+  "sendToServer": {
+    "message": "관리 서버로 전송"
+  },
+  "sendDone": {
+    "message": "'$p1$' 으로 전송했습니다.",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "sendFailed": {
+    "message": "전송하지 못했습니다: $p1$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "adminExpired": {
+    "message": "로그인이 만료되었습니다. 다시 로그인하세요."
+  },
+  "openConsole": {
+    "message": "관리 페이지 열기"
+  },
+  "useServerOrg": {
+    "message": "사내 기본 배치로 사용"
+  },
+  "adminLogout": {
+    "message": "로그아웃"
+  },
+  "orgLoadedToEditor": {
+    "message": "사내 기본 배치 $p1$ 을(를) 불러왔습니다. 저장하면 적용됩니다.",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "orgInterval": {
+    "message": "확인 주기"
+  },
+  "minutes": {
+    "message": "분"
+  },
+  "intervalOwn": {
+    "message": "직접 지정 · 비우면 사내 설정"
+  },
+  "intervalOrg": {
+    "message": "사내 설정 $p1$분",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "intervalDefault": {
+    "message": "기본 $p1$분",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "editAdminOnly": {
+    "message": "편집 모드는 관리자로 로그인하면 사용할 수 있습니다(아래 관리자 로그인)."
+  },
+  "updateFrom": {
+    "message": "업데이트 받을 곳"
+  },
+  "updateNoServer": {
+    "message": "사내 기본 배치 주소(관리 서버)가 없습니다"
+  },
+  "updateNoPackage": {
+    "message": "관리 서버에 올라온 확장 패키지가 없습니다"
+  },
+  "updateFromServerNote": {
+    "message": "관리 서버 $p1$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "widget": {
+    "message": "위젯"
+  },
+  "missingWidget": {
+    "message": "이 화면에 없는 위젯입니다: $p1$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "originalWidgets": {
+    "message": "이 화면의 위젯"
+  },
+  "fieldPickWidget": {
+    "message": "또는 이 화면 위젯의 주소 가져오기"
+  },
+  "pickWidgetPlaceholder": {
+    "message": "위젯 선택…"
+  },
+  "fieldAddFromWidget": {
+    "message": "이 화면 위젯으로 탭 추가"
+  },
+  "thisPage": {
+    "message": "이 화면"
+  },
+  "pageCustomize": {
+    "message": "이 화면 꾸미기"
+  },
+  "pageStop": {
+    "message": "이 화면 꾸미기 끄기"
+  },
+  "pageUnsupported": {
+    "message": "이 화면은 꾸밀 수 없습니다(http/https 화면만)"
+  },
+  "pageDetected": {
+    "message": "감지: $p1$ · 위젯 $p2$개",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      },
+      "p2": {
+        "content": "$2"
+      }
+    }
+  },
+  "noFramework": {
+    "message": "프레임워크 없음(화면 구조로 감지)"
+  },
+  "pageReload": {
+    "message": "화면을 새로고침하면 적용됩니다"
+  },
+  "pageNoPermission": {
+    "message": "이 사이트 접근을 허용해야 꾸밀 수 있습니다"
+  },
+  "pageOnDone": {
+    "message": "꾸미기를 켰습니다. 관리자 로그인 후 편집 모드에서 배치를 바꿀 수 있습니다"
+  }
+}

@@ -1,0 +1,16 @@
+/* synthetic dashboard used by the e2e tests: header, side menu, a three-column widget grid, footer */
+* { box-sizing: border-box; }
+body { margin: 0; font: 14px/1.4 system-ui, sans-serif; background: #f4f5f7; }
+.top { height: 56px; background: #223; color: #fff; display: flex; align-items: center; padding: 0 16px; }
+.layout { display: flex; align-items: flex-start; }
+.side { width: 200px; min-height: 760px; background: #fff; border-right: 1px solid #ddd; padding: 12px; }
+.side a { display: block; padding: 6px 0; color: #335; }
+.main { flex: 1 1 auto; padding: 16px; min-width: 0; }
+.main h1 { font-size: 18px; margin: 0 0 12px; height: 24px; }
+.grid { display: flex; gap: 16px; align-items: flex-start; }
+.col { display: flex; flex-direction: column; gap: 16px; width: 300px; }
+.col.wide { flex: 1 1 auto; width: auto; }
+.card { background: #fff; border: 1px solid #ddd; border-radius: 6px; overflow: hidden; }
+.card h3 { margin: 0; padding: 10px 12px; font-size: 15px; background: #eef1f6; }
+.card .body { padding: 10px 12px; }
+.foot { height: 48px; background: #ddd; }

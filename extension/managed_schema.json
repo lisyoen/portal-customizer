@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "properties": {
+    "orgConfigUrl": {
+      "title": "Organization default layout URL",
+      "description": "URL of a Portal Customizer layout JSON file applied as the default layout for every user.",
+      "type": "string"
+    }
+  }
+}

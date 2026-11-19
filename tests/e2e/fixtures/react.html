@@ -1,0 +1,19 @@
+<!doctype html><html><head><meta charset="utf-8"><title>React dashboard</title><link rel="stylesheet" href="/fixtures/style.css"></head>
+<body><div id="root"></div>
+<script src="/lib/react.js"></script><script src="/lib/react-dom.js"></script>
+<script>
+const e = React.createElement;
+const make = (name, title, height) => { const C = () => e("div", { className: "card", style: { height } }, e("h3", null, title), e("div", { className: "body" }, title + " body")); C.displayName = name; return C; };
+const NoticeWidget = make("NoticeWidget", "Notice", 220), MailWidget = make("MailWidget", "Mail", 260), CalendarWidget = make("CalendarWidget", "Calendar", 300);
+const NewsWidget = make("NewsWidget", "News", 200), WeatherWidget = make("WeatherWidget", "Weather", 180), LinksWidget = make("LinksWidget", "Links", 240);
+function Column({ wide, children }) { return e("div", { className: "col" + (wide ? " wide" : "") }, children); }
+function App() {
+  const [gen, setGen] = React.useState(0);
+  window.recreateMail = () => setGen((g) => g + 1);
+  return e("div", null, e("header", { className: "top" }, "React portal"), e("div", { className: "layout" }, e("nav", { className: "side" }, e("a", { href: "#" }, "Home")),
+    e("main", { className: "main" }, e("h1", null, "Dashboard"), e("div", { className: "grid" },
+      e(Column, null, e(NoticeWidget), e(MailWidget, { key: "m" + gen })), e(Column, { wide: true }, e(CalendarWidget), e(NewsWidget)), e(Column, null, e(WeatherWidget), e(LinksWidget))))),
+    e("footer", { className: "foot" }));
+}
+ReactDOM.createRoot(document.getElementById("root")).render(e(App));
+</script></body></html>

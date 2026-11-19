@@ -1,0 +1,15 @@
+{
+  "name": "portal-customizer-server",
+  "version": "0.3.1",
+  "private": true,
+  "description": "Admin server for Portal Customizer: publishes portal-customizer.json, schedules layouts, manages contents.",
+  "license": "BUSL-1.1",
+  "main": "server.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test tests/"
+  }
+}

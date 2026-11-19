@@ -1,0 +1,25 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Vue 3 dashboard</title><link rel="stylesheet" href="/fixtures/style.css"></head>
+<body><div id="app"></div>
+<script src="/lib/vue3.js"></script>
+<script>
+const { createApp, h, ref } = Vue;
+const card = (name, title, height, extra) => ({ name, setup() { return () => h("div", { class: "card", style: { height: height + "px" } }, [h("h3", title), h("div", { class: "body" }, extra ? extra() : title + " body")]); } });
+const NoticeCard = card("NoticeCard", "Notice", 220), MailCard = card("MailCard", "Mail", 260);
+const CalendarCard = card("CalendarCard", "Calendar", 300), NewsCard = card("NewsCard", "News", 200);
+const WeatherCard = card("WeatherCard", "Weather", 180), LinksCard = card("LinksCard", "Links", 240, () => [h("a", { href: "#", id: "link1" }, "Link one")]);
+const SideNav = { name: "SideNav", setup() { return () => h("nav", { class: "side" }, ["Home", "Mail", "Board"].map((x) => h("a", { href: "#" }, x))); } };
+const App = { name: "App", setup() {
+  const gen = ref(0);
+  window.recreateMail = () => { gen.value++; };
+  const late = new URLSearchParams(location.search).has("late");
+  const ready = ref(!late);
+  if (late) setTimeout(() => { ready.value = true; }, 1500);
+  return () => h("div", [h("header", { class: "top" }, "Vue 3 portal"), h("div", { class: "layout" }, [h(SideNav), h("main", { class: "main" }, [h("h1", "Dashboard"),
+    ready.value ? h("div", { class: "grid" }, [
+      h("div", { class: "col" }, [h(NoticeCard), h(MailCard, { key: "m" + gen.value })]),
+      h("div", { class: "col wide" }, [h(CalendarCard), h(NewsCard)]),
+      h("div", { class: "col" }, [h(WeatherCard), h(LinksCard)]),
+    ]) : h("div", "loading")])]), h("footer", { class: "foot" })]);
+} };
+createApp(App).mount("#app");
+</script></body></html>

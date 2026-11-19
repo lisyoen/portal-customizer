@@ -1,0 +1,266 @@
+"use strict";
+importScripts("lib/version.js", "lib/layout.js");
+
+const NATIVE_HOST = "io.github.lisyoen.portal_customizer";
+const UPDATE_ALARM = "pc-update-check";
+const ORG_ALARM = "pc-org-check";
+const CHECK_MINUTES = 1;
+const ORG_DEFAULT_MINUTES = 60;
+const t = (k, s) => chrome.i18n.getMessage(k, s) || k;
+
+function currentVersion() { return chrome.runtime.getManifest().version; }
+
+// ---------- extension self-update (same flow as the updater helper expects) ----------
+async function applyUpdateState(latest, extra) {
+  const newer = PC.isNewer(latest, currentVersion());
+  await chrome.storage.local.set(Object.assign({ latestVersion: latest || null, updateAvailable: newer }, extra || {}));
+  if (newer) {
+    await chrome.action.setBadgeText({ text: "NEW" });
+    await chrome.action.setBadgeBackgroundColor({ color: "#E8364F" });
+    await chrome.action.setTitle({ title: t("badgeTitleUpdate", [latest]) });
+  } else {
+    await chrome.action.setBadgeText({ text: "" });
+    await chrome.action.setTitle({ title: t("extName") });
+  }
+  return { latest, current: currentVersion(), newer };
+}
+
+// Updates come only from the organization's admin server (it hosts the extension package uploaded by an
+// administrator on its 확장 배포 page): the server of the organization address, else the logged-in admin server.
+function originOf(u) { try { const x = new URL(u); return /^https?:$/.test(x.protocol) ? x.origin : ""; } catch (_e) { return ""; } }
+async function updateSource() {
+  const { adminServer } = await chrome.storage.local.get("adminServer");
+  const server = originOf((await orgUrl()).url) || originOf(adminServer || "");
+  return { source: "server", server, latestUrl: server ? server + "/ext/latest.json" : "" };
+}
+
+async function checkForUpdate() {
+  const src = await updateSource();
+  try {
+    if (!src.latestUrl) throw new Error(t("updateNoServer"));
+    const res = await fetch(src.latestUrl + "?t=" + Date.now(), { cache: "no-store" });
+    if (res.status === 404) throw new Error(t("updateNoPackage"));
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const remote = await res.json();
+    if (!/^\d+\.\d+\.\d+$/.test(String(remote.version || ""))) throw new Error("bad version");
+    return await applyUpdateState(remote.version, { checkedAt: Date.now(), checkError: null, updateFrom: src.source, latestZipUrl: remote.zipUrl ? new URL(remote.zipUrl, src.latestUrl).href : "" });
+  } catch (err) {
+    const { latestVersion } = await chrome.storage.local.get("latestVersion");
+    const r = await applyUpdateState(latestVersion);
+    await chrome.storage.local.set({ checkError: String((err && err.message) || err), updateFrom: src.source });
+    return Object.assign(r, { error: String((err && err.message) || err) });
+  }
+}
+
+function notify(message) {
+  chrome.notifications.create({ type: "basic", iconUrl: "icons/icon128.png", title: t("extName"), message });
+}
+
+function nativeUpdate(version, zipUrl) {
+  return new Promise((resolve) => {
+    chrome.runtime.sendNativeMessage(NATIVE_HOST, { action: "update", version: version || "", zipUrl: zipUrl || "" }, (response) => {
+      if (chrome.runtime.lastError) resolve({ ok: false, missing: true, message: chrome.runtime.lastError.message });
+      else resolve(response || { ok: false, message: "no response" });
+    });
+  });
+}
+
+async function runUpdate() {
+  await chrome.action.setBadgeText({ text: "..." });
+  const { latestVersion, latestZipUrl } = await chrome.storage.local.get(["latestVersion", "latestZipUrl"]);
+  // always hand the helper the admin server's package address, so it never falls back to GitHub
+  if (!latestZipUrl) { await applyUpdateState(latestVersion); return { ok: false, message: t("updateNoPackage") }; }
+  const r = await nativeUpdate(latestVersion, latestZipUrl);
+  if (r.missing) {
+    await chrome.storage.local.set({ helperMissing: true });
+    await applyUpdateState(latestVersion);
+    return r;
+  }
+  await chrome.storage.local.set({ helperMissing: false });
+  if (!r.ok) { await applyUpdateState(latestVersion); return r; }
+  if (r.upToDate && !(r.mode === "zip" && PC.isNewer(r.after, currentVersion()))) { await checkForUpdate(); return r; }
+  await chrome.storage.local.set({ justUpdatedFrom: currentVersion() });
+  setTimeout(() => chrome.runtime.reload(), 300);
+  return Object.assign(r, { reloading: true });
+}
+
+// ---------- organization default layout ----------
+async function orgUrl() {
+  const { orgUrl: own } = await chrome.storage.local.get("orgUrl");
+  if (own) return { url: own, managed: false };
+  try {
+    const m = await chrome.storage.managed.get("orgConfigUrl");
+    if (m && m.orgConfigUrl) return { url: m.orgConfigUrl, managed: true };
+  } catch (_e) { /* no policy */ }
+  return { url: "", managed: false };
+}
+
+async function fetchOrg() {
+  const { url, managed } = await orgUrl();
+  const { orgConfig: prev } = await chrome.storage.local.get("orgConfig");
+  if (!url) {
+    if (prev) await chrome.storage.local.remove("orgConfig");
+    return { ok: true, empty: true };
+  }
+  try {
+    let { clientId } = await chrome.storage.local.get("clientId");
+    if (!clientId) { clientId = crypto.randomUUID(); await chrome.storage.local.set({ clientId }); }
+    // anonymous install id and version: lets the admin server count users (no personal data)
+    const res = await fetch(url + (url.includes("?") ? "&" : "?") + "_kc=" + Date.now(), { cache: "no-store", headers: { "X-PC-Client": clientId, "X-PC-Version": currentVersion() } });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const text = await res.text();
+    const r = PCLayout.validate(JSON.parse(text));
+    if (!r.ok) throw new Error(r.error);
+    const version = r.layout.version || PCLayout.hash(text);
+    const raw = JSON.parse(text);
+    const orgConfig = { url, managed, version, name: r.layout.name || "", layout: r.layout, match: siteList(raw.match), site: siteRuleOf(raw.site), fetchedAt: Date.now(), error: null };
+    // Avoid storage churn (and page re-renders) when nothing changed.
+    if (!prev || prev.version !== version || prev.url !== url || prev.error || (prev.layout && prev.layout.refreshMinutes) !== r.layout.refreshMinutes
+      || JSON.stringify(prev.match) !== JSON.stringify(orgConfig.match) || JSON.stringify(prev.site) !== JSON.stringify(orgConfig.site)) await chrome.storage.local.set({ orgConfig });
+    else await chrome.storage.local.set({ orgCheckedAt: Date.now() });
+    await scheduleOrg();
+    return { ok: true, version };
+  } catch (err) {
+    const message = String((err && err.message) || err);
+    const orgConfig = Object.assign({}, prev && prev.url === url ? prev : { url, managed, layout: null, version: "" }, { error: message, fetchedAt: Date.now() });
+    await chrome.storage.local.set({ orgConfig });
+    return { ok: false, error: message };
+  }
+}
+
+// Pages the organization layout applies to (address prefixes) and the optional site rule (CSS selectors that
+// override automatic detection: container, widget, title, pause, avoid).
+function siteList(v) {
+  const items = Array.isArray(v) ? v : String(v || "").split(/[\s,]+/);
+  return items.map((x) => String(x).trim()).filter((x) => /^https?:\/\//i.test(x)).slice(0, 50);
+}
+function siteRuleOf(v) {
+  if (!v || typeof v !== "object") return null;
+  const out = {};
+  for (const k of ["container", "widget", "title", "pause", "avoid"]) if (typeof v[k] === "string" && v[k].trim()) out[k] = v[k].trim().slice(0, 300);
+  return Object.keys(out).length ? out : null;
+}
+
+// ---------- where the content scripts run ----------
+// Only on pages the user turned on (popup "Customize this page") and pages named by the organization layout,
+// and only where the user granted access to that site.
+const CONTENT_JS = ["lib/layout.js", "lib/detect.js", "content/media.js", "content/content.js"];
+const CONTENT_CSS = ["content/content.css"];
+function originPattern(href) {
+  const m = /^(https?):\/\/([^/?#]+)/i.exec(String(href || ""));
+  return m ? m[1].toLowerCase() + "://" + m[2].replace(/:\d+$/, "").toLowerCase() + "/*" : "";
+}
+async function wantedPatterns() {
+  const { sites, orgConfig } = await chrome.storage.local.get(["sites", "orgConfig"]);
+  const pats = new Set();
+  for (const [k, v] of Object.entries(sites || {})) if (v && v.on) pats.add(originPattern(k));
+  for (const m of (orgConfig && orgConfig.match) || []) pats.add(originPattern(m));
+  pats.delete("");
+  const granted = [];
+  for (const p of pats) { try { if (await chrome.permissions.contains({ origins: [p] })) granted.push(p); } catch (_e) { /* bad pattern */ } }
+  return granted;
+}
+let syncing = Promise.resolve();
+function syncScripts() {
+  syncing = syncing.then(async () => {
+    const matches = await wantedPatterns();
+    const ids = (await chrome.scripting.getRegisteredContentScripts()).map((x) => x.id).filter((id) => id.startsWith("pc-"));
+    if (ids.length) await chrome.scripting.unregisterContentScripts({ ids });
+    if (!matches.length) return [];
+    await chrome.scripting.registerContentScripts([
+      { id: "pc-probe", matches, js: ["content/probe.js"], world: "MAIN", runAt: "document_idle", persistAcrossSessions: true },
+      { id: "pc-content", matches, js: CONTENT_JS, css: CONTENT_CSS, runAt: "document_idle", persistAcrossSessions: true },
+    ]);
+    return matches;
+  }).catch((e) => { console.warn("syncScripts", e); return []; });
+  return syncing;
+}
+// Turn a page on (after the popup got the site permission) and start at once without a reload.
+async function enableSite(tabId, url) {
+  const key = (() => { try { const u = new URL(url); return u.origin + u.pathname; } catch (_e) { return ""; } })();
+  if (!key) return { ok: false };
+  const { sites } = await chrome.storage.local.get("sites");
+  const next = Object.assign({}, sites);
+  next[key] = Object.assign({}, next[key], { on: true });
+  await chrome.storage.local.set({ sites: next });
+  await syncScripts();
+  try {
+    const [{ result: loaded } = {}] = await chrome.scripting.executeScript({ target: { tabId }, func: () => !!window.__portalCustomizerLoaded });
+    if (!loaded) {
+      await chrome.scripting.executeScript({ target: { tabId }, files: ["content/probe.js"], world: "MAIN" });
+      await chrome.scripting.insertCSS({ target: { tabId }, files: CONTENT_CSS });
+      await chrome.scripting.executeScript({ target: { tabId }, files: CONTENT_JS });
+    }
+  } catch (e) { return { ok: true, reload: true, error: String(e && e.message || e) }; }
+  return { ok: true };
+}
+async function disableSite(url) {
+  const key = (() => { try { const u = new URL(url); return u.origin + u.pathname; } catch (_e) { return ""; } })();
+  const { sites } = await chrome.storage.local.get("sites");
+  const next = Object.assign({}, sites);
+  if (next[key]) next[key] = Object.assign({}, next[key], { on: false });
+  await chrome.storage.local.set({ sites: next, editMode: false });
+  await syncScripts();
+  return { ok: true };
+}
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && ("sites" in changes || "orgConfig" in changes)) {
+    const a = changes.sites, o = changes.orgConfig;
+    const onKeys = (v) => JSON.stringify(Object.entries(v || {}).filter(([, x]) => x && x.on).map(([k]) => originPattern(k)).sort());
+    if ((a && onKeys(a.oldValue) !== onKeys(a.newValue)) || (o && JSON.stringify((o.oldValue || {}).match) !== JSON.stringify((o.newValue || {}).match))) syncScripts();
+  }
+});
+chrome.permissions.onAdded.addListener(() => syncScripts());
+chrome.permissions.onRemoved.addListener(() => syncScripts());
+
+// Organization check interval: the user's own value in the popup, else the one the admin put in
+// portal-customizer.json (refreshMinutes), else 60 minutes.
+async function orgMinutes() {
+  const { orgRefreshMinutes, orgConfig } = await chrome.storage.local.get(["orgRefreshMinutes", "orgConfig"]);
+  const own = PCLayout.refreshMinutes(orgRefreshMinutes);
+  if (own) return { minutes: own, source: "own" };
+  const org = PCLayout.refreshMinutes(orgConfig && orgConfig.layout && orgConfig.layout.refreshMinutes);
+  if (org) return { minutes: org, source: "org" };
+  return { minutes: ORG_DEFAULT_MINUTES, source: "default" };
+}
+async function scheduleOrg() {
+  const { minutes } = await orgMinutes();
+  const a = await chrome.alarms.get(ORG_ALARM);
+  if (!a || a.periodInMinutes !== minutes) await chrome.alarms.create(ORG_ALARM, { periodInMinutes: minutes });
+  return minutes;
+}
+function schedule() {
+  chrome.alarms.create(UPDATE_ALARM, { periodInMinutes: CHECK_MINUTES });
+  scheduleOrg();
+}
+
+chrome.runtime.onInstalled.addListener(async (details) => {
+  schedule();
+  if (details.reason === "install") await chrome.storage.local.set({ enabled: true, editMode: false, sites: {} });
+  await syncScripts();
+  const { justUpdatedFrom } = await chrome.storage.local.get("justUpdatedFrom");
+  if (justUpdatedFrom && justUpdatedFrom !== currentVersion()) notify(t("updatedTo", [currentVersion()]));
+  await chrome.storage.local.remove("justUpdatedFrom");
+  await checkForUpdate();
+  await fetchOrg();
+});
+
+chrome.runtime.onStartup.addListener(async () => { schedule(); await syncScripts(); await checkForUpdate(); await fetchOrg(); });
+
+chrome.alarms.onAlarm.addListener((a) => {
+  if (a.name === UPDATE_ALARM) checkForUpdate();
+  if (a.name === ORG_ALARM) fetchOrg();
+});
+
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (!msg) return false;
+  if (msg.type === "checkUpdate") { checkForUpdate().then(sendResponse); return true; }
+  if (msg.type === "updateSource") { updateSource().then(sendResponse); return true; }
+  if (msg.type === "runUpdate") { runUpdate().then(sendResponse); return true; }
+  if (msg.type === "fetchOrg") { fetchOrg().then(sendResponse); return true; }
+  if (msg.type === "enableSite") { enableSite(msg.tabId, msg.url).then(sendResponse); return true; }
+  if (msg.type === "disableSite") { disableSite(msg.url).then(sendResponse); return true; }
+  if (msg.type === "syncScripts") { syncScripts().then(sendResponse); return true; }
+  if (msg.type === "orgMinutes") { scheduleOrg().then(() => orgMinutes()).then(sendResponse); return true; }
+  return false;
+});

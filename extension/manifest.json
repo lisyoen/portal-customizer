@@ -1,0 +1,45 @@
+{
+  "manifest_version": 3,
+  "name": "__MSG_extName__",
+  "short_name": "Portal Customizer",
+  "version": "0.6.0",
+  "description": "__MSG_extDescription__",
+  "default_locale": "en",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2t94TinVRp7f7eeWuIopQyIo91oqSG/XRDqQ8r0+6nMM/ZP3qs7tBfmti9ChwQMZJvpMZXUqSsEtkJAdNBajoQ8LC5G/l3yzezyioYfnfOxcLN/WEqp6brL/7ahpv0h6ADPTTUPV1fTOGdlfOqnCy5aoIzJlo9BEINPvIP/xRDNRmacYidr+PrVTFRaunU0RUVYU4cqOuo/ovHE36nMs3Wi9tKK4x5U7QX7pwSo3soiuFJvzmhxll5MX+z1vscH8VvxgNsc20e2T7Byw6RGXeWxhkcVofHFdgtPEvtz0WDK40E51vmKRUvaXtnjyqcSmLRVb76SOLjzsH79502btUwIDAQAB",
+  "permissions": [
+    "storage",
+    "unlimitedStorage",
+    "alarms",
+    "notifications",
+    "nativeMessaging",
+    "scripting",
+    "activeTab"
+  ],
+  "host_permissions": [],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "__MSG_extName__",
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "storage": {
+    "managed_schema": "managed_schema.json"
+  }
+}

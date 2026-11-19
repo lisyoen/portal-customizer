@@ -1,0 +1,10 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Vue 2 dashboard</title><link rel="stylesheet" href="/fixtures/style.css"></head>
+<body><div id="app"></div>
+<script src="/lib/vue2.js"></script>
+<script>
+const card = (name, title, height) => ({ name, render(h) { return h("div", { class: "card", style: { height: height + "px" } }, [h("h3", title), h("div", { class: "body" }, title + " body")]); } });
+new Vue({ el: "#app", components: { NoticeCard: card("NoticeCard", "Notice", 220), MailCard: card("MailCard", "Mail", 260), CalendarCard: card("CalendarCard", "Calendar", 300),
+  NewsCard: card("NewsCard", "News", 200), WeatherCard: card("WeatherCard", "Weather", 180), LinksCard: card("LinksCard", "Links", 240) },
+  render(h) { return h("div", [h("header", { class: "top" }, "Vue 2 portal"), h("div", { class: "layout" }, [h("nav", { class: "side" }, [h("a", "Home")]), h("main", { class: "main" }, [h("h1", "Dashboard"),
+    h("div", { class: "grid" }, [h("div", { class: "col" }, [h("notice-card"), h("mail-card")]), h("div", { class: "col wide" }, [h("calendar-card"), h("news-card")]), h("div", { class: "col" }, [h("weather-card"), h("links-card")])])])]), h("footer", { class: "foot" })]); } });
+</script></body></html>

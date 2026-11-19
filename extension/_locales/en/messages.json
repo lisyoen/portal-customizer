@@ -1,0 +1,732 @@
+{
+  "extName": {
+    "message": "Portal Customizer"
+  },
+  "extDescription": {
+    "message": "Rearrange and decorate portal and dashboard pages: finds the widgets of Vue, React and other pages, lets you drag them around and add images, links, memos and web pages."
+  },
+  "badgeTitleUpdate": {
+    "message": "Portal Customizer $p1$ is available. Open the popup to update.",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "updatedTo": {
+    "message": "Updated to version $p1$.",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "dragColumn": {
+    "message": "Drag to move the column"
+  },
+  "fillWidth": {
+    "message": "Fill remaining width"
+  },
+  "toggleFill": {
+    "message": "Switch between fixed width and fill"
+  },
+  "deleteColumn": {
+    "message": "Delete column"
+  },
+  "lastColumn": {
+    "message": "At least one column is needed."
+  },
+  "confirmDeleteColumn": {
+    "message": "Delete this column and its panels?"
+  },
+  "type_native": {
+    "message": "Page widget"
+  },
+  "type_image": {
+    "message": "Image"
+  },
+  "type_links": {
+    "message": "Links"
+  },
+  "type_memo": {
+    "message": "Memo"
+  },
+  "type_iframe": {
+    "message": "iframe (board / web page)"
+  },
+  "panelSettings": {
+    "message": "Panel settings"
+  },
+  "showPanel": {
+    "message": "Show panel"
+  },
+  "hidePanel": {
+    "message": "Hide panel"
+  },
+  "deletePanel": {
+    "message": "Delete panel"
+  },
+  "emptyImage": {
+    "message": "No image yet. Open ⚙ to choose one."
+  },
+  "emptyLinks": {
+    "message": "No links yet. Open ⚙ to add some."
+  },
+  "memoPlaceholder": {
+    "message": "Write a note…"
+  },
+  "emptyIframe": {
+    "message": "No address yet. Open ⚙ to enter one."
+  },
+  "resizeColumn": {
+    "message": "Drag to change the width"
+  },
+  "resizePanel": {
+    "message": "Drag to change the height, double-click for automatic"
+  },
+  "editingTitle": {
+    "message": "Portal Customizer · Edit"
+  },
+  "addPanel": {
+    "message": "Panel"
+  },
+  "addColumn": {
+    "message": "Column"
+  },
+  "export": {
+    "message": "Export"
+  },
+  "import": {
+    "message": "Import"
+  },
+  "useOrgDefault": {
+    "message": "Organization default"
+  },
+  "useOriginal": {
+    "message": "Original layout"
+  },
+  "confirmOriginal": {
+    "message": "Replace the current edit with this page's original layout?"
+  },
+  "cancel": {
+    "message": "Cancel"
+  },
+  "save": {
+    "message": "Save"
+  },
+  "apply": {
+    "message": "Apply"
+  },
+  "customPanels": {
+    "message": "New panel"
+  },
+  "saved": {
+    "message": "Layout saved."
+  },
+  "imported": {
+    "message": "Layout imported. Press Save to keep it."
+  },
+  "importFailed": {
+    "message": "Could not import: $p1$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "fieldTitle": {
+    "message": "Title"
+  },
+  "fieldHeight": {
+    "message": "Height (px)"
+  },
+  "auto": {
+    "message": "automatic"
+  },
+  "fieldShowHeader": {
+    "message": "Show the title"
+  },
+  "fieldImageUrl": {
+    "message": "Image address"
+  },
+  "fieldImageFile": {
+    "message": "Or choose a file"
+  },
+  "imageFileHint": {
+    "message": "The picture is stored in this browser and included when you export."
+  },
+  "fieldLink": {
+    "message": "Open this address on click (optional)"
+  },
+  "fieldFit": {
+    "message": "Fit"
+  },
+  "fitCover": {
+    "message": "Fill the panel (crop)"
+  },
+  "fitContain": {
+    "message": "Show whole image"
+  },
+  "fieldBackground": {
+    "message": "Background color (optional)"
+  },
+  "fieldLinks": {
+    "message": "Links, one per line"
+  },
+  "linksHint": {
+    "message": "Format: Title | https://address | https://image (image optional, used by banners)"
+  },
+  "fieldNewTab": {
+    "message": "Open in a new tab"
+  },
+  "fieldMemoDefault": {
+    "message": "Default text"
+  },
+  "memoHint": {
+    "message": "You can type in the memo directly on the page; what you type is saved in this browser."
+  },
+  "fieldPageUrl": {
+    "message": "Page address"
+  },
+  "iframeHint": {
+    "message": "Any http(s) address. Some sites do not allow being shown inside another page."
+  },
+  "nativeHint": {
+    "message": "A widget of the page itself. Its content comes from the page; you can hide its title and change the height."
+  },
+  "enable": {
+    "message": "Use Portal Customizer"
+  },
+  "editMode": {
+    "message": "Edit mode"
+  },
+  "editHint": {
+    "message": "Turn on edit mode and an edit toolbar appears on the pages you customize. Unsaved changes are discarded when edit mode is turned off."
+  },
+  "layoutSource": {
+    "message": "Current layout"
+  },
+  "sourceMine": {
+    "message": "My layout"
+  },
+  "sourceOrg": {
+    "message": "Organization default $p1$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "sourceOriginal": {
+    "message": "Original layout"
+  },
+  "applyOrg": {
+    "message": "Apply"
+  },
+  "resetMine": {
+    "message": "Discard my layout and use the default"
+  },
+  "confirmResetMine": {
+    "message": "Discard your saved layout?"
+  },
+  "orgNewer": {
+    "message": "A new organization default ($p1$) is available.",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "orgDefault": {
+    "message": "Organization default"
+  },
+  "orgUrlPlaceholder": {
+    "message": "https://intranet.example.com/portal-customizer.json"
+  },
+  "loadOrg": {
+    "message": "Load"
+  },
+  "orgNone": {
+    "message": "Not set. Enter the address of a layout file shared in your organization."
+  },
+  "orgManaged": {
+    "message": "Set by your administrator."
+  },
+  "orgError": {
+    "message": "Could not load: $p1$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "orgLoaded": {
+    "message": "Version $p1$ · checked $p2$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      },
+      "p2": {
+        "content": "$2"
+      }
+    }
+  },
+  "orgBadUrl": {
+    "message": "Enter an http(s) address."
+  },
+  "orgNoPermission": {
+    "message": "Access to that server was not allowed."
+  },
+  "updateNow": {
+    "message": "Update now"
+  },
+  "updating": {
+    "message": "Updating…"
+  },
+  "checkUpdates": {
+    "message": "Check for updates"
+  },
+  "updateAvailable": {
+    "message": "Version $p1$ is available.",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "upToDateVersion": {
+    "message": "You have the latest version ($p1$).",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "updateCheckFailed": {
+    "message": "Could not check for updates."
+  },
+  "updateHelperMissing": {
+    "message": "Register the updater once: run updater\\install-updater.bat in the extension folder."
+  },
+  "updateFailed": {
+    "message": "Update failed: $p1$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "fieldShowHeaderNative": {
+    "message": "Show the widget's title"
+  },
+  "fieldTitleNative": {
+    "message": "Name in edit mode"
+  },
+  "titleHidden": {
+    "message": "title hidden"
+  },
+  "refresh": {
+    "message": "Refresh"
+  },
+  "fieldRefresh": {
+    "message": "Auto refresh every N minutes (0 = off)"
+  },
+  "fieldZoom": {
+    "message": "Zoom (%)"
+  },
+  "fieldScroll": {
+    "message": "Allow scrolling inside"
+  },
+  "exportJson": {
+    "message": "Export as JSON"
+  },
+  "exportHint": {
+    "message": "Downloads the layout in use as portal-customizer.json. Put the file on an intranet web server and share its address as the organization default."
+  },
+  "exportNothing": {
+    "message": "No saved layout yet. Arrange the page in edit mode and save first."
+  },
+  "exportDone": {
+    "message": "Saved portal-customizer.json"
+  },
+  "type_carousel": {
+    "message": "Carousel (featured contents)"
+  },
+  "type_feed": {
+    "message": "Feed with tabs (boards)"
+  },
+  "emptyCarousel": {
+    "message": "No slides yet. Open ⚙ to add some."
+  },
+  "emptyFeed": {
+    "message": "No tabs yet. Open ⚙ and add boards."
+  },
+  "feedAll": {
+    "message": "ALL"
+  },
+  "feedMy": {
+    "message": "My"
+  },
+  "feedSort": {
+    "message": "Sort"
+  },
+  "sortDefault": {
+    "message": "Default order"
+  },
+  "sortDate": {
+    "message": "Newest"
+  },
+  "sortTitle": {
+    "message": "Title"
+  },
+  "feedSearch": {
+    "message": "Search"
+  },
+  "feedNoBookmarks": {
+    "message": "No bookmarks yet. Click ☆ on a post."
+  },
+  "feedNoMatch": {
+    "message": "No matching posts."
+  },
+  "feedLoading": {
+    "message": "Loading posts…"
+  },
+  "untitled": {
+    "message": "Untitled"
+  },
+  "more": {
+    "message": "More"
+  },
+  "bookmark": {
+    "message": "Bookmark"
+  },
+  "openNewTab": {
+    "message": "Open in a new tab"
+  },
+  "copyUrl": {
+    "message": "Copy URL"
+  },
+  "shareMail": {
+    "message": "Share by mail"
+  },
+  "close": {
+    "message": "Close"
+  },
+  "siteLink": {
+    "message": "Go to site"
+  },
+  "writePost": {
+    "message": "Write"
+  },
+  "uploadedImage": {
+    "message": "(uploaded image)"
+  },
+  "addRow": {
+    "message": "Add"
+  },
+  "fieldDisplay": {
+    "message": "Display"
+  },
+  "displayList": {
+    "message": "List"
+  },
+  "displayBanners": {
+    "message": "Banners (tiles, image optional)"
+  },
+  "fieldLinkShort": {
+    "message": "Link (optional)"
+  },
+  "fieldSlides": {
+    "message": "Slides"
+  },
+  "fieldInterval": {
+    "message": "Auto slide every N seconds (0 = off)"
+  },
+  "fieldCaptions": {
+    "message": "Show titles on slides"
+  },
+  "fieldLayer": {
+    "message": "Open links in a layer on this page"
+  },
+  "fieldTabs": {
+    "message": "Tabs"
+  },
+  "fieldTabName": {
+    "message": "Tab name"
+  },
+  "fieldTabSource": {
+    "message": "Board address"
+  },
+  "fieldTabSite": {
+    "message": "Site link (optional)"
+  },
+  "fieldTabWrite": {
+    "message": "Write link (optional)"
+  },
+  "feedHint": {
+    "message": "Posts are read from board pages on this site and shown as cards. Pages of other sites are shown as they are."
+  },
+  "fieldView": {
+    "message": "View"
+  },
+  "viewCard": {
+    "message": "Cards"
+  },
+  "viewList": {
+    "message": "List"
+  },
+  "fieldFirstTab": {
+    "message": "First tab"
+  },
+  "firstTabAuto": {
+    "message": "Automatic"
+  },
+  "fieldLimit": {
+    "message": "Posts per tab"
+  },
+  "fieldAllTab": {
+    "message": "Show the ALL tab (posts from every tab)"
+  },
+  "gapButton": {
+    "message": "Spacing"
+  },
+  "gapSettings": {
+    "message": "Spacing between panels"
+  },
+  "gapPanelDefault": {
+    "message": "Space between panels in a column (px)"
+  },
+  "gapColDefault": {
+    "message": "Space between columns (px)"
+  },
+  "gapResetOverrides": {
+    "message": "Reset spaces set on individual panels and columns"
+  },
+  "gapHint": {
+    "message": "In edit mode drag the number between panels or columns to change the space, click it to type a value, double-click to go back to the default. Empty = default."
+  },
+  "gapAbove": {
+    "message": "Space above this panel (px): type, use the arrows or the mouse wheel; you can also drag the dotted strip above the panel"
+  },
+  "gapReset": {
+    "message": "Back to the default space"
+  },
+  "type_video": {
+    "message": "Video"
+  },
+  "type_html": {
+    "message": "Rich text (HTML)"
+  },
+  "emptyVideo": {
+    "message": "No video yet. Open ⚙ to set one."
+  },
+  "emptyHtml": {
+    "message": "No content yet. Open ⚙ to write some."
+  },
+  "fieldVideoUrl": {
+    "message": "Video address (mp4, webm)"
+  },
+  "fieldPoster": {
+    "message": "Preview image (optional)"
+  },
+  "fieldAutoplay": {
+    "message": "Play automatically"
+  },
+  "fieldMuted": {
+    "message": "Muted"
+  },
+  "fieldLoop": {
+    "message": "Repeat"
+  },
+  "fieldControls": {
+    "message": "Show player controls"
+  },
+  "fieldHtml": {
+    "message": "HTML"
+  },
+  "htmlHint": {
+    "message": "Formatting, lists, tables, links and images are kept; scripts and style tags are removed."
+  },
+  "adminTitle": {
+    "message": "Administrator"
+  },
+  "adminLogin": {
+    "message": "Admin login"
+  },
+  "adminServerPlaceholder": {
+    "message": "Admin server, e.g. http://server:9150"
+  },
+  "adminUserPlaceholder": {
+    "message": "ID"
+  },
+  "adminPassPlaceholder": {
+    "message": "Password"
+  },
+  "adminLoginBtn": {
+    "message": "Log in"
+  },
+  "adminLoginFailed": {
+    "message": "Login failed: $p1$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "adminWho": {
+    "message": "$p1$ · $p2$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      },
+      "p2": {
+        "content": "$2"
+      }
+    }
+  },
+  "sendNamePlaceholder": {
+    "message": "Layout name"
+  },
+  "sendToServer": {
+    "message": "Send to server"
+  },
+  "sendDone": {
+    "message": "Sent as '$p1$'.",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "sendFailed": {
+    "message": "Could not send: $p1$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "adminExpired": {
+    "message": "Login expired. Log in again."
+  },
+  "openConsole": {
+    "message": "Open admin page"
+  },
+  "useServerOrg": {
+    "message": "Use as organization default"
+  },
+  "adminLogout": {
+    "message": "Log out"
+  },
+  "orgLoadedToEditor": {
+    "message": "Loaded the organization default $p1$. Save to apply.",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "orgInterval": {
+    "message": "Check every"
+  },
+  "minutes": {
+    "message": "min"
+  },
+  "intervalOwn": {
+    "message": "your value · clear to follow the organization"
+  },
+  "intervalOrg": {
+    "message": "organization: $p1$ min",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "intervalDefault": {
+    "message": "default: $p1$ min",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "editAdminOnly": {
+    "message": "Edit mode is available after an administrator login (below)."
+  },
+  "updateFrom": {
+    "message": "Updates from"
+  },
+  "updateNoServer": {
+    "message": "No organization (admin server) address is set"
+  },
+  "updateNoPackage": {
+    "message": "The admin server has no extension package yet"
+  },
+  "updateFromServerNote": {
+    "message": "admin server $p1$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "widget": {
+    "message": "Widget"
+  },
+  "missingWidget": {
+    "message": "\"$p1$\" is not on this page.",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "originalWidgets": {
+    "message": "Widgets on this page"
+  },
+  "fieldPickWidget": {
+    "message": "Or copy the address of a widget on this page"
+  },
+  "pickWidgetPlaceholder": {
+    "message": "Choose a widget…"
+  },
+  "fieldAddFromWidget": {
+    "message": "Add a tab from a widget on this page"
+  },
+  "thisPage": {
+    "message": "This page"
+  },
+  "pageCustomize": {
+    "message": "Customize this page"
+  },
+  "pageStop": {
+    "message": "Stop customizing this page"
+  },
+  "pageUnsupported": {
+    "message": "This page cannot be customized (http/https pages only)"
+  },
+  "pageDetected": {
+    "message": "Found: $p1$ · $p2$ widgets",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      },
+      "p2": {
+        "content": "$2"
+      }
+    }
+  },
+  "noFramework": {
+    "message": "no framework (page structure)"
+  },
+  "pageReload": {
+    "message": "Reload the page to apply"
+  },
+  "pageNoPermission": {
+    "message": "Allow access to this site to customize it"
+  },
+  "pageOnDone": {
+    "message": "Customizing is on. Log in as an administrator and use edit mode to change the layout"
+  }
+}
