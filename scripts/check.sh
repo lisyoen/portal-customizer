@@ -10,7 +10,7 @@ files = list(m["icons"].values()) + [m["background"]["service_worker"], m["actio
 bg = open("extension/background.js", encoding="utf-8").read()
 for name in ("CONTENT_JS", "CONTENT_CSS"):
     files += re.findall(r'"([^"]+)"', re.search(name + r" = \[([^\]]*)\]", bg).group(1))
-files += ["content/probe.js"]
+files += ["content/probe.js", "content/early.js"]
 missing = [f for f in files if not os.path.isfile(os.path.join("extension", f))]
 if missing: sys.exit(f"missing: {missing}")
 used = set()

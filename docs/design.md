@@ -20,9 +20,10 @@ Detection runs while nothing is mounted (it needs the page in its own shape). Wh
 - When the framework re-creates a widget (a new DOM node), the lost node is noticed, the page is detected again and the layout is mounted again.
 - Extra panels (image, links, memo, web page, video, HTML, carousel, feed) are ordinary elements inside `#pc-root`.
 - Turning the page off removes `#pc-root` and restores every style and attribute it changed.
+- On load the layout appears without first showing the original arrangement: a small `document_start` script (`content/early.js`) hides the widget area of a page that has a saved layout (the container found last time, stored as `cloak:<page>`, or the widget rule's container) until the layout is mounted; the rest starts at `document_end`. Detection lifts that hiding for its own synchronous pass. If saved widgets are missing, it waits only while the page keeps adding widgets (at most 4 s); widgets that arrive later (up to 20 s after load) trigger a remount in one task, so nothing flashes.
 
 ## Where it runs
 
 Content scripts are registered at run time (`chrome.scripting.registerContentScripts`) for the sites of pages turned on in the popup and the pages the organization layout names, limited to sites the user allowed. Layouts are stored per page address (`origin + path`) in `sites`.
 
-Code: layout model `extension/lib/layout.js`, detection `extension/lib/detect.js`, probe `extension/content/probe.js`, page logic `extension/content/content.js`, registration, updates and the organization layout `extension/background.js`.
+Code: layout model `extension/lib/layout.js`, detection `extension/lib/detect.js`, probe `extension/content/probe.js`, early hiding `extension/content/early.js`, page logic `extension/content/content.js`, registration, updates and the organization layout `extension/background.js`.

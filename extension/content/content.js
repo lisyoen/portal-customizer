@@ -35,7 +35,14 @@
   let slots = new Map();         // panelId -> { key, ph, body }
   const touched = new Map();     // element -> original style attribute
   let rafId = 0;
-  let waitTries = 0;             // detection retries while saved widgets have not appeared yet
+  // Saved widgets that have not appeared yet: wait while the page keeps adding widgets (up to WAIT_MAX ms, and
+  // only while the found set changed in the last WAIT_STILL ms), then mount with what is there. Widgets that show
+  // up later (until LATE_MS after load) trigger a new mount; the whole remount runs in one task, so nothing flashes.
+  const WAIT_MAX = 4000, WAIT_STILL = 800, LATE_MS = 20000;
+  const loadedAt = Date.now();
+  let waitStart = 0, waitSig = "", waitChange = 0, waitTimer = 0;
+  let missingKeys = [];          // saved widgets not on the page at the last mount
+  let forceFresh = false;
   // Custom panels rendered in view mode are kept between re-renders when unchanged, so a carousel position,
   // a feed tab or a search text survive the page re-creating its widgets. Each keeps its own timers.
   let panelCache = new Map();    // panelId -> { sig, node, ctx:{timers, cleanups} }
@@ -83,6 +90,30 @@
     if (orgApplies()) return S.orgConfig.layout;
     return null;
   }
+  // The early script hides the widget area until the layout is mounted; drop that when nothing will be drawn.
+  function uncloak() { const c = document.getElementById("pc-cloak"); if (c) c.remove(); }
+  // remember where the widget area was, so the early script can hide it on the next load
+  function rememberCloak(container) {
+    const r = siteRule();
+    const sel = (r && r.container) || (D.cssPath ? D.cssPath(container) : "");
+    const k = "cloak:" + SITE;
+    if (!sel || rememberCloak.last === sel) return;
+    rememberCloak.last = sel;
+    try { chrome.storage.local.get(k).then((o) => { if (o[k] !== sel) storageSet({ [k]: sel }); }).catch(() => {}); } catch (_e) { contextAlive = false; }
+  }
+  // elements n levels below the container (no layout checks: the container is hidden while mounted)
+  function levelCount(container, n) {
+    let cur = [container];
+    for (let i = 0; i < n && cur.length < 4000; i++) cur = cur.flatMap((e) => [...e.children].filter((k) => k.id !== "pc-root"));
+    return cur.length;
+  }
+  function keepWaiting() {
+    const now = Date.now();
+    if (!waitStart) { waitStart = now; waitChange = now; waitSig = ""; }
+    const sig = [...catalog.keys()].join("|");
+    if (sig !== waitSig) { waitSig = sig; waitChange = now; }
+    return now - waitStart < WAIT_MAX && now - waitChange < WAIT_STILL;
+  }
   function storageSet(obj) {
     try { return chrome.storage.local.set(obj); } catch (_e) { contextAlive = false; return Promise.resolve(); }
   }
@@ -92,7 +123,11 @@
   function probe() { try { document.dispatchEvent(new CustomEvent("pc:probe")); } catch (_e) { /* ignore */ } }
   function scan() {
     probe();
-    const r = D.detect(document, siteRule());
+    // detection skips hidden boxes: lift the early hiding for the (synchronous, so never painted) detection
+    const cloak = document.getElementById("pc-cloak");
+    if (cloak && cloak.sheet) cloak.sheet.disabled = true;
+    let r = null;
+    try { r = D.detect(document, siteRule()); } finally { if (cloak && cloak.sheet) cloak.sheet.disabled = false; }
     const map = new Map();
     if (!r) { catalog = map; detected = null; lastStructure = []; return null; }
     const columns = r.columns.map((c) => ({
@@ -109,34 +144,44 @@
       }),
     }));
     catalog = map;
-    detected = { container: r.container, framework: r.framework, mode: r.mode };
+    // level/count: how many boxes sit at the widget level, to notice cheaply when the page adds a widget later
+    detected = { container: r.container, framework: r.framework, mode: r.mode, level: r.level, count: r.level ? levelCount(r.container, r.level) : 0 };
     lastStructure = columns;
     try { document.documentElement.setAttribute("data-pc-widgets", String(map.size)); } catch (_e) { /* ignore */ }
     return columns;
   }
   function update() {
     if (!contextAlive) return;
-    if (picker) return; // choosing the widget level: the page stays as it is
-    if (!active()) { unmount(); return; }
+    if (picker) { uncloak(); return; } // choosing the widget level: the page stays as it is
+    if (!active()) { uncloak(); unmount(); return; }
     // first edit of a page without a widget rule or layout: let the user confirm the widget level first
-    if (S.editMode && !draft && !siteRule() && !effectiveLayout() && !pickerShown) { pickerShown = true; openPicker(); return; }
+    if (S.editMode && !draft && !siteRule() && !effectiveLayout() && !pickerShown) { pickerShown = true; uncloak(); openPicker(); return; }
     let layout = null;
     if (S.editMode) layout = draft || effectiveLayout();
     else layout = effectiveLayout();
     if (!layout && !S.editMode) {
       // nothing to draw yet: still look at the page so the popup can tell what was found
+      uncloak();
       unmount();
       if (!catalog.size || [...catalog.values()].some((i) => !i.node.isConnected)) scan();
       return;
     }
-    const fresh = !mounted || !mounted.root.isConnected || !mounted.container.isConnected || [...catalog.values()].some((i) => !i.node.isConnected);
+    const fresh = forceFresh || !mounted || !mounted.root.isConnected || !mounted.container.isConnected || [...catalog.values()].some((i) => !i.node.isConnected);
+    forceFresh = false;
     if (fresh) {
+      const hadMount = !!mounted;
       unmount();
       const structure = scan();
       if (!structure || !detected) return;
-      // widgets of a saved layout may appear a little after the page loads: wait for them (up to ~6 s)
+      // widgets of a saved layout may appear a little after the page loads: wait while more keep coming
       const want = layout ? [...L.usedNativeKeys(layout)] : [];
-      if (want.some((k) => !catalog.has(k)) && waitTries < 12) { waitTries++; setTimeout(update, 500); return; }
+      const missing = want.filter((k) => !catalog.has(k));
+      if (missing.length && !hadMount && keepWaiting()) {
+        clearTimeout(waitTimer);
+        waitTimer = setTimeout(update, 200);
+        return;
+      }
+      missingKeys = missing;
       if (S.editMode && !draft) { draft = L.clone(freshDraft || !layout ? L.fromCatalog(structure) : layout); freshDraft = false; }
       if (S.editMode) layout = draft;
       const container = detected.container;
@@ -146,6 +191,7 @@
       container.setAttribute("data-pc-container", detected.mode);
       mounted = { container, root };
       document.documentElement.classList.add("pc-active");
+      rememberCloak(container);
       attachEditHandlers(root);
     } else if (S.editMode && !draft) {
       draft = L.clone(layout || L.fromCatalog(lastStructure));
@@ -921,6 +967,7 @@
   let picker = null, pickerShown = false, freshDraft = false;
   function pickWidgets() { return picker.container && picker.container.isConnected ? D.atLevel(picker.container, picker.level) : []; }
   function openPicker() {
+    uncloak(); // the picker looks at the page as it is
     if (picker) return;
     unmount(); removeToolbar(); probe();
     const r = D.detect(document, siteRule());
@@ -1032,24 +1079,42 @@
     if ("editMode" in changes && !S.editMode) { draft = null; if (picker) { closePicker(false); return; } }
     if ("enabled" in changes && S.enabled === undefined) S.enabled = true;
     if (!S.sites) S.sites = {};
-    waitTries = 0;
+    waitStart = 0;
     update();
   });
 
   // The page changes all the time. While mounted, only lost widgets (re-created by the framework) need a new
   // detection; while not mounted, look again at most once a second (the page may still be building itself).
-  let pending = false, lastLook = 0;
+  let pending = false, lastLook = 0, sawAdded = false, lateTimer = 0;
+  // a remount (synchronous, so invisible) only when the number of boxes at the widget level changed
+  function lateCheck() {
+    if (lateTimer) return;
+    lateTimer = setTimeout(() => {
+      lateTimer = 0;
+      if (!mounted || !detected || !detected.level || !mounted.container.isConnected) return;
+      if (levelCount(mounted.container, detected.level) === detected.count) return;
+      forceFresh = true;
+      update();
+    }, 150);
+  }
+  const ours = (m) => m.target.closest && m.target.closest("#pc-root, #pc-toolbar, .pc-menu, #pc-pick, #pc-pickbar");
   const observer = new MutationObserver((list) => {
-    if (pending || !active()) return;
-    if (list.every((m) => m.target.closest && m.target.closest("#pc-root, #pc-toolbar, .pc-menu, #pc-pick, #pc-pickbar"))) return;
+    if (!active()) return;
+    if (list.every(ours)) return;
+    if (!sawAdded) sawAdded = list.some((m) => !ours(m) && [...m.addedNodes].some((n) => n.nodeType === 1 && !(n.id || "").startsWith("pc-")));
+    if (pending) return;
     pending = true;
     requestAnimationFrame(() => {
       pending = false;
+      const added = sawAdded; sawAdded = false;
       if (mounted) {
-        if (!mounted.container.isConnected || [...catalog.values()].some((i) => !i.node.isConnected)) update();
+        if (!mounted.container.isConnected || [...catalog.values()].some((i) => !i.node.isConnected)) { update(); return; }
+        // saved widgets that were not there at mount time: look again when the page adds a widget
+        if (missingKeys.length && added && Date.now() - loadedAt < LATE_MS) lateCheck();
         return;
       }
-      if (Date.now() - lastLook < 1000) return;
+      // a saved layout is waiting to be drawn: look often; otherwise at most once a second
+      if (Date.now() - lastLook < (effectiveLayout() || S.editMode ? 100 : 1000)) return;
       lastLook = Date.now();
       update();
     });

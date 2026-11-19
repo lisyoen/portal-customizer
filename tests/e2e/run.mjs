@@ -198,6 +198,63 @@ for (const fw of ["vue3", "vue2", "react", "plain"]) {
   await page.close();
 }
 
+// reload of a customized page: the layout comes at once and the original arrangement is never shown
+{
+  const url = "http://vue3.portal.test/home";
+  const page = await ctx.newPage();
+  // from the first script on, sample every frame: is the page's widget grid visible while no layout is mounted?
+  await page.addInitScript(() => {
+    window.__pcFlash = 0; window.__pcMountedAt = 0; window.__pcGridAt = 0;
+    const t0 = performance.now();
+    const look = () => {
+      const g = document.querySelector(".grid");
+      const on = document.documentElement.classList.contains("pc-active");
+      if (g && !window.__pcGridAt) window.__pcGridAt = performance.now() - t0;
+      if (on && !window.__pcMountedAt) window.__pcMountedAt = performance.now() - t0;
+      if (g && !on && g.getBoundingClientRect().height > 0 && getComputedStyle(g).visibility !== "hidden") window.__pcFlash++;
+      if (performance.now() - t0 < 6000) requestAnimationFrame(look);
+    };
+    requestAnimationFrame(look);
+  });
+  await page.goto(url); // first visit after the layout was saved: learns where the widget area is
+  await page.waitForTimeout(800);
+  check("the widget area is remembered for the next load", !!(await read("cloak:" + url))["cloak:" + url]);
+  await page.reload();
+  await page.waitForTimeout(1500);
+  let r = await page.evaluate(() => ({ flash: window.__pcFlash, mounted: Math.round(window.__pcMountedAt), grid: Math.round(window.__pcGridAt) }));
+  check("reload: original arrangement never shown", r.flash === 0 && r.mounted > 0, JSON.stringify(r));
+  check("reload: layout mounted right after the widgets render", r.mounted > 0 && r.mounted - r.grid < 500, JSON.stringify(r));
+
+  // a saved widget that is no longer on the page must not hold the layout back (it used to wait ~6 s)
+  const st = await getSite(url);
+  const l = JSON.parse(JSON.stringify(st.userLayout));
+  l.columns[0].panels.push({ id: "gone1", type: "native", key: "title:Gone", title: "Gone" });
+  await setSite(url, { userLayout: l });
+  await page.reload();
+  await page.waitForTimeout(2500);
+  r = await page.evaluate(() => ({ flash: window.__pcFlash, mounted: Math.round(window.__pcMountedAt), grid: Math.round(window.__pcGridAt) }));
+  check("reload with a widget missing from the page: no long wait", r.flash === 0 && r.mounted > 0 && r.mounted - r.grid < 1500, JSON.stringify(r));
+
+  // a widget that arrives after the layout is mounted still gets its slot
+  await page.goto(url + "?lateone=1");
+  await page.waitForTimeout(1200);
+  const early = await page.evaluate(() => ({ on: document.documentElement.classList.contains("pc-active"), flash: window.__pcFlash }));
+  await page.waitForTimeout(2500);
+  const bad = await alignedAll(page, ["Links", "Mail", "Calendar"]);
+  check("late widget: layout shown before it arrives, then placed", early.on && early.flash === 0 && !bad.length, JSON.stringify({ early, bad }));
+  l.columns[0].panels = l.columns[0].panels.filter((p) => p.id !== "gone1");
+  await setSite(url, { userLayout: l });
+
+  // turned off: nothing hidden
+  await setSite(url, { on: false });
+  await page.reload();
+  await page.waitForTimeout(800);
+  const c = await cardRect(page, "Mail");
+  check("page turned off: no hiding on load", (await page.locator("#pc-cloak").count()) === 0 && c && c.vis === "visible", JSON.stringify(c));
+  await setSite(url, { on: true });
+  await page.close();
+}
+
 // turning a page off restores it
 {
   const url = "http://plain.portal.test/home";

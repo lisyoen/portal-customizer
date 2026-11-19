@@ -14,11 +14,15 @@ const App = { name: "App", setup() {
   const late = new URLSearchParams(location.search).has("late");
   const ready = ref(!late);
   if (late) setTimeout(() => { ready.value = true; }, 1500);
+  // lateone: one widget (Links) arrives well after the others
+  const lateOne = new URLSearchParams(location.search).has("lateone");
+  const linksOn = ref(!lateOne);
+  if (lateOne) setTimeout(() => { linksOn.value = true; }, 2500);
   return () => h("div", [h("header", { class: "top" }, "Vue 3 portal"), h("div", { class: "layout" }, [h(SideNav), h("main", { class: "main" }, [h("h1", "Dashboard"),
     ready.value ? h("div", { class: "grid" }, [
       h("div", { class: "col" }, [h(NoticeCard), h(MailCard, { key: "m" + gen.value })]),
       h("div", { class: "col wide" }, [h(CalendarCard), h(NewsCard)]),
-      h("div", { class: "col" }, [h(WeatherCard), h(LinksCard)]),
+      h("div", { class: "col" }, [h(WeatherCard), linksOn.value ? h(LinksCard) : null]),
     ]) : h("div", "loading")])]), h("footer", { class: "foot" })]);
 } };
 createApp(App).mount("#app");

@@ -163,8 +163,10 @@ function syncScripts() {
     if (ids.length) await chrome.scripting.unregisterContentScripts({ ids });
     if (!matches.length) return [];
     await chrome.scripting.registerContentScripts([
-      { id: "pc-probe", matches, js: ["content/probe.js"], world: "MAIN", runAt: "document_idle", persistAcrossSessions: true },
-      { id: "pc-content", matches, js: CONTENT_JS, css: CONTENT_CSS, runAt: "document_idle", persistAcrossSessions: true },
+      // early: hides the widget area of a page with a saved layout until the layout is mounted (no flash of the original)
+      { id: "pc-early", matches, js: ["lib/layout.js", "content/early.js"], runAt: "document_start", persistAcrossSessions: true },
+      { id: "pc-probe", matches, js: ["content/probe.js"], world: "MAIN", runAt: "document_end", persistAcrossSessions: true },
+      { id: "pc-content", matches, js: CONTENT_JS, css: CONTENT_CSS, runAt: "document_end", persistAcrossSessions: true },
     ]);
     return matches;
   }).catch((e) => { console.warn("syncScripts", e); return []; });
