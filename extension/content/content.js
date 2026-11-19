@@ -261,7 +261,9 @@
     if (picker) { uncloak(); return; } // choosing the widget level: the page stays as it is
     if (!active()) { uncloak(); unmount(); return; }
     // first edit of a page without a widget rule or layout: let the user confirm the widget level first
-    if (S.editMode && !draft && !siteRule() && !effectiveLayout() && !pickerShown) { pickerShown = true; uncloak(); openPicker(); return; }
+    // first edit of a page whose widget unit was never confirmed (also when an organization layout already
+    // applies, e.g. one made before the widget unit existed): let the user confirm it first
+    if (S.editMode && !draft && !siteRule() && !pickerShown) { pickerShown = true; uncloak(); openPicker(); return; }
     let layout = null;
     if (S.editMode) layout = draft || effectiveLayout();
     else layout = effectiveLayout();
@@ -278,7 +280,14 @@
       const hadMount = !!mounted;
       unmount();
       const structure = scan();
-      if (!structure || !detected) return;
+      if (!structure || !detected) {
+        // edit mode must never silently do nothing: no widgets found → the picker (choose a sample widget)
+        if (S.editMode && !draft) {
+          if (!pickerShown) { pickerShown = true; uncloak(); openPicker(); }
+          else if (!update.told) { update.told = true; toast(t("editNoWidgets")); }
+        }
+        return;
+      }
       // widgets of a saved layout may appear a little after the page loads: wait while more keep coming
       const want = layout ? [...L.usedNativeKeys(layout)] : [];
       const missing = want.filter((k) => !catalog.has(k));
@@ -1080,7 +1089,8 @@
     if (picker) return;
     unmount(); removeToolbar(); probe();
     const r = D.detect(document, siteRule());
-    picker = { container: r ? r.container : null, level: r ? r.level : 1, framework: r ? r.framework : "", sampling: false, hover: null, raf: 0 };
+    picker = { container: r ? r.container : null, level: r ? r.level : 1, framework: r ? r.framework : "", sampling: !r, // nothing found: start by choosing a sample widget
+ hover: null, raf: 0 };
     const layer = el("div", { id: "pc-pick" });
     const info = el("span", { class: "pc-pick-info" });
     const bar = el("div", { id: "pc-pickbar" }, [
@@ -1185,7 +1195,7 @@
     for (const k of KEYS) if (k in changes) { S[k] = changes[k].newValue; relevant = true; }
     if (!relevant) return;
     gateEdit();
-    if ("editMode" in changes && !S.editMode) { draft = null; if (picker) { closePicker(false); return; } }
+    if ("editMode" in changes && !S.editMode) { draft = null; pickerShown = false; update.told = false; if (picker) { closePicker(false); return; } }
     if ("enabled" in changes && S.enabled === undefined) S.enabled = true;
     if (!S.sites) S.sites = {};
     waitStart = 0;

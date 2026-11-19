@@ -784,5 +784,8 @@
   },
   "updateNoGithub": {
     "message": "GitHub에 배포 정보가 없습니다"
+  },
+  "editNoWidgets": {
+    "message": "이 화면에서 위젯을 찾지 못했습니다. 편집 모드를 껐다 켜서 위젯 단위 정하기에서 견본 위젯을 골라 주세요."
   }
 }

@@ -784,5 +784,8 @@
   },
   "updateNoGithub": {
     "message": "No release information on GitHub yet"
+  },
+  "editNoWidgets": {
+    "message": "No widgets found on this page. Turn edit mode off and on, then pick a sample widget in the widget unit picker."
   }
 }

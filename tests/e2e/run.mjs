@@ -313,6 +313,15 @@ for (const fw of ["vue3", "vue2", "react", "plain"]) {
   const bad = await alignedAll(page, ["Mail", "Calendar"]);
   const n = await cardRect(page, "Notice");
   check("org layout places its widgets and leaves the others out", !bad.length && n && n.vis === "hidden", JSON.stringify({ bad, n }));
+  // edit mode on a page the org layout applies to, without a confirmed widget unit: the picker opens first
+  await store({ editMode: true });
+  await page.waitForSelector("#pc-pickbar", { timeout: 5000 }).catch(() => {});
+  check("edit mode under an org layout opens the widget unit picker", (await page.locator("#pc-pickbar").count()) === 1);
+  await page.click("#pc-pick-apply");
+  await page.waitForSelector("#pc-root.pc-edit", { timeout: 5000 }).catch(() => {});
+  check("after the picker the editor opens", (await page.locator("#pc-root.pc-edit").count()) === 1 && (await page.locator("#pc-toolbar").count()) === 1);
+  await store({ editMode: false });
+  await page.waitForTimeout(400);
   const other = await ctx.newPage();
   await other.goto("http://org.portal.test/other");
   await other.waitForTimeout(1000);
