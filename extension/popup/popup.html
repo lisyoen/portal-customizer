@@ -76,7 +76,12 @@
   <section class="update">
     <div id="update" class="update-row"><span id="updateText"></span><button id="updateBtn" data-i18n="updateNow">Update now</button></div>
     <div class="row interval">
-      <span data-i18n="updateFrom">Updates from</span>
+      <label for="updateSource" data-i18n="updateFrom">Updates from</label>
+      <select id="updateSource">
+        <option value="" data-i18n="updateFromAuto">Automatic</option>
+        <option value="server" data-i18n="updateFromServer">Admin server</option>
+        <option value="github" data-i18n="updateFromGithub">Internet (GitHub releases)</option>
+      </select>
       <span id="updateSourceNote" class="status"></span>
     </div>
     <p class="status"><a href="#" id="checkNow" data-i18n="checkUpdates">Check for updates</a></p>

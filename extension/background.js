@@ -25,13 +25,20 @@ async function applyUpdateState(latest, extra) {
   return { latest, current: currentVersion(), newer };
 }
 
-// Updates come only from the organization's admin server (it hosts the extension package uploaded by an
-// administrator on its 확장 배포 page): the server of the organization address, else the logged-in admin server.
+// Where updates come from (popup choice): the organization's admin server (it hosts the extension package
+// uploaded on its 확장 배포 page; the server of the organization address, else the logged-in admin server) or the
+// internet (GitHub releases; publish/latest.json on the main branch names the newest release package).
+// Automatic: the admin server when one is known, else GitHub.
+const GITHUB_REPO = "lisyoen/portal-customizer";
+const GITHUB_LATEST = "https://raw.githubusercontent.com/" + GITHUB_REPO + "/main/publish/latest.json";
 function originOf(u) { try { const x = new URL(u); return /^https?:$/.test(x.protocol) ? x.origin : ""; } catch (_e) { return ""; } }
 async function updateSource() {
-  const { adminServer } = await chrome.storage.local.get("adminServer");
+  const { adminServer, updateSource: chosen } = await chrome.storage.local.get(["adminServer", "updateSource"]);
   const server = originOf((await orgUrl()).url) || originOf(adminServer || "");
-  return { source: "server", server, latestUrl: server ? server + "/ext/latest.json" : "" };
+  const pick = chosen === "github" || chosen === "server" ? chosen : "";
+  const source = pick || (server ? "server" : "github");
+  if (source === "github") return { source, chosen: pick, server, latestUrl: GITHUB_LATEST };
+  return { source, chosen: pick, server, latestUrl: server ? server + "/ext/latest.json" : "" };
 }
 
 async function checkForUpdate() {
@@ -39,7 +46,7 @@ async function checkForUpdate() {
   try {
     if (!src.latestUrl) throw new Error(t("updateNoServer"));
     const res = await fetch(src.latestUrl + "?t=" + Date.now(), { cache: "no-store" });
-    if (res.status === 404) throw new Error(t("updateNoPackage"));
+    if (res.status === 404) throw new Error(t(src.source === "github" ? "updateNoGithub" : "updateNoPackage"));
     if (!res.ok) throw new Error("HTTP " + res.status);
     const remote = await res.json();
     if (!/^\d+\.\d+\.\d+$/.test(String(remote.version || ""))) throw new Error("bad version");

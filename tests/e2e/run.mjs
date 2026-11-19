@@ -339,6 +339,22 @@ for (const fw of ["vue3", "vue2", "react", "plain"]) {
 {
   const us = await popup.evaluate(() => chrome.runtime.sendMessage({ type: "updateSource" }));
   check("updates come from the admin server", us.source === "server" && us.latestUrl === "https://intranet.example.com/ext/latest.json", JSON.stringify(us));
+  // the popup can switch to the internet (GitHub releases)
+  await ctx.route("https://raw.githubusercontent.com/**", (r) => r.fulfill({ contentType: "text/plain", headers: { "Access-Control-Allow-Origin": "*" },
+    body: JSON.stringify({ version: "9.9.9", zipUrl: "https://github.com/lisyoen/portal-customizer/releases/download/v9.9.9/portal-customizer-v9.9.9.zip" }) }));
+  await popup.reload();
+  await popup.waitForTimeout(300);
+  check("popup offers the update source choice", (await popup.locator("#updateSource option").count()) === 3 && (await popup.locator("#updateSource").inputValue()) === "");
+  await popup.selectOption("#updateSource", "github");
+  await popup.waitForTimeout(800);
+  const gs = await popup.evaluate(() => chrome.runtime.sendMessage({ type: "updateSource" }));
+  const st = await read(["updateSource", "latestVersion", "latestZipUrl", "updateFrom"]);
+  check("choosing the internet checks GitHub releases", gs.source === "github" && /raw\.githubusercontent\.com\/lisyoen\/portal-customizer\/main\/publish\/latest\.json$/.test(gs.latestUrl) && st.updateSource === "github" && st.latestVersion === "9.9.9" && /releases\/download\/v9\.9\.9\//.test(st.latestZipUrl) && st.updateFrom === "github", JSON.stringify({ gs, st }));
+  check("popup shows the internet source", /GitHub/.test(await popup.locator("#updateSourceNote").innerText()) && /9\.9\.9/.test(await popup.locator("#updateText").innerText()));
+  await popup.selectOption("#updateSource", "");
+  await popup.waitForTimeout(800);
+  const back = await popup.evaluate(() => chrome.runtime.sendMessage({ type: "updateSource" }));
+  check("automatic goes back to the admin server", back.source === "server" && !(await read("updateSource")).updateSource, JSON.stringify(back));
 }
 
 await ctx.close();

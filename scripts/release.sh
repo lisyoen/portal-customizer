@@ -19,9 +19,14 @@ bash scripts/check.sh > /dev/null
 mkdir -p dist
 ZIP="dist/portal-customizer-v${VERSION}.zip"
 bash scripts/build-zip.sh "$ZIP"
+# publish/latest.json on main tells extensions that update from the internet which release package is newest
+mkdir -p publish
+printf '{\n  "version": "%s",\n  "zipUrl": "https://github.com/lisyoen/portal-customizer/releases/download/v%s/portal-customizer-v%s.zip"\n}\n' "$VERSION" "$VERSION" "$VERSION" > publish/latest.json
 git add -A
 git commit -qm "release: v${VERSION}"
 git tag "v${VERSION}"
-git push -q origin main "v${VERSION}"
-gh release create "v${VERSION}" "$ZIP" --title "v${VERSION}" --notes-file "$NOTES"
+# the package must exist before main (and so publish/latest.json) moves
+git push -q origin "v${VERSION}"
+gh release create "v${VERSION}" "$ZIP" --title "v${VERSION}" --notes-file "$NOTES" --latest
+git push -q origin main
 echo "released v${VERSION}"

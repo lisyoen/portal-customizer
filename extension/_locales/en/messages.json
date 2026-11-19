@@ -769,5 +769,20 @@
   },
   "pickNoSelector": {
     "message": "Could not find a way to locate this area again; automatic detection is used"
+  },
+  "updateFromAuto": {
+    "message": "Automatic"
+  },
+  "updateFromServer": {
+    "message": "Admin server"
+  },
+  "updateFromGithub": {
+    "message": "Internet (GitHub releases)"
+  },
+  "updateFromGithubNote": {
+    "message": "GitHub releases"
+  },
+  "updateNoGithub": {
+    "message": "No release information on GitHub yet"
   }
 }

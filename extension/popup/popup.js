@@ -256,10 +256,20 @@ async function showUpdate() {
   let src = null;
   try { src = await chrome.runtime.sendMessage({ type: "updateSource" }); } catch (_e) { /* worker restarting */ }
   if (src) {
-    $("updateSourceNote").textContent = src.server ? t("updateFromServerNote", [new URL(src.server).host]) : t("updateNoServer");
+    const sel = $("updateSource");
+    if (document.activeElement !== sel) sel.value = src.chosen || "";
+    $("updateSourceNote").textContent = src.source === "github" ? t("updateFromGithubNote")
+      : src.server ? t("updateFromServerNote", [new URL(src.server).host]) : t("updateNoServer");
   }
   if (checkError && !PC.isNewer(latestVersion, current)) setRow(checkError, "error");
 }
+$("updateSource").addEventListener("change", async (e) => {
+  if (e.target.value) await local.set({ updateSource: e.target.value });
+  else await local.remove("updateSource");
+  await local.remove(["latestVersion", "latestZipUrl", "checkError"]);
+  await chrome.runtime.sendMessage({ type: "checkUpdate" });
+  showUpdate();
+});
 $("updateBtn").addEventListener("click", async () => {
   const btn = $("updateBtn");
   btn.disabled = true; btn.textContent = t("updating");
