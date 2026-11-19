@@ -107,7 +107,8 @@
           width: c.flex ? null : num(c.width, MIN_COL, MAX_COL) || 380,
           flex: c.flex ? 1 : null,
           panels: c.items.map((p, pi) => {
-            const panel = { id: uid("p"), type: "native", key: p.key, title: str(p.title), height: num(p.height, MIN_PANEL, MAX_PANEL) };
+            // auto: the height is the page's own (until someone changes it), so it is not compared with the page
+            const panel = { id: uid("p"), type: "native", key: p.key, title: str(p.title), height: num(p.height, MIN_PANEL, MAX_PANEL), auto: true };
             const g = pi ? gapValue(p.gap) : null;
             if (g != null && g !== dp) panel.gap = g;
             return panel;
@@ -132,6 +133,7 @@
     if (p.hidden) out.hidden = true;
     if (p.header === false) out.header = false;
     if (p.type === "native") {
+      if (p.auto) out.auto = true;
       out.key = str(p.key, 500);
       if (!out.key) return null;
     } else if (p.type === "image") {
@@ -267,7 +269,11 @@
   function updatePanel(layout, id, patch) {
     const l = clone(layout);
     const f = findPanel(l, id);
-    if (f) l.columns[f.ci].panels[f.pi] = normPanel(Object.assign({}, f.panel, patch)) || f.panel;
+    if (f) {
+      const next = Object.assign({}, f.panel, patch);
+      if ("height" in patch && patch.height !== f.panel.height) delete next.auto; // height set by hand
+      l.columns[f.ci].panels[f.pi] = normPanel(next) || f.panel;
+    }
     return l;
   }
   function removePanel(layout, id) {
@@ -409,7 +415,33 @@
     return out;
   }
 
-  const api = { SCHEMA, TYPES, uid, clone, keyFromSrc, nativeKey, matchesSite, widgetRule, fromCatalog, validate, normPanel, findPanel, movePanel,
+  // Short signature of a layout's arrangement (columns, panels, gaps), to remember that it was already found
+  // to match the page.
+  function sig(layout) {
+    const src = JSON.stringify({ c: (layout && layout.columns) || [], g: (layout && layout.gaps) || null });
+    let h = 5381;
+    for (let i = 0; i < src.length; i++) h = ((h << 5) + h + src.charCodeAt(i)) | 0;
+    return (h >>> 0).toString(36) + ":" + src.length;
+  }
+  // True when a layout puts exactly the page's own widgets in the page's own order, sizes and spacing
+  // (structure: columns as detected, with measured gaps): showing it would change nothing, so the page is left as is.
+  function matchesPage(layout, structure) {
+    if (!layout || !Array.isArray(layout.columns) || !structure || layout.columns.length !== structure.length) return false;
+    return layout.columns.every((col, ci) => {
+      const sc = structure[ci];
+      if (!!col.flex !== !!sc.flex) return false;
+      if (!col.flex && Math.abs((col.width || 0) - (sc.width || 0)) > 1) return false;
+      if (ci && sc.gap != null && Math.abs(colGap(layout, col) - sc.gap) > 1) return false;
+      if (col.panels.length !== sc.items.length) return false;
+      return col.panels.every((p, pi) => {
+        const it = sc.items[pi];
+        if (p.type !== "native" || p.hidden || p.header === false || p.key !== it.key) return false;
+        if (!p.auto && p.height && it.height && Math.abs(p.height - it.height) > 2) return false;
+        return !pi || it.gap == null || Math.abs(panelGap(layout, p) - it.gap) <= 1;
+      });
+    });
+  }
+  const api = { sig, matchesPage, SCHEMA, TYPES, uid, clone, keyFromSrc, nativeKey, matchesSite, widgetRule, fromCatalog, validate, normPanel, findPanel, movePanel,
     moveColumn, addPanel, updatePanel, removePanel, addColumn, removeColumn, setColumn, usedNativeKeys, newPanel, hash,
     parseLinks, formatLinks, safeUrl, gapValue, panelGap, colGap, setGap, DEFAULT_PANEL_GAP, DEFAULT_COL_GAP, parseDate, cleanItems, mergeRoundRobin, sortItems, sanitizeHtml, refreshMinutes };
   root.PCLayout = api;

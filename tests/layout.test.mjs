@@ -58,6 +58,35 @@ test("fromCatalog keeps the page's spacing: most common gap as default, the rest
   assert.equal(L.fromCatalog([{ width: 300, items: [{ key: "x" }] }]).gaps, undefined);
 });
 
+test("matchesPage: the page's own arrangement is left as is, any change is drawn", () => {
+  const cat = [
+    { width: 366, items: [{ key: "a", height: 200 }, { key: "b", height: 200, gap: 25 }] },
+    { flex: true, gap: 27.5, items: [{ key: "e", height: 60 }, { key: "f", height: 80, gap: 0 }] },
+  ];
+  const l = L.fromCatalog(cat);
+  assert.equal(L.matchesPage(l, cat), true);
+  assert.equal(L.matchesPage(L.validate(l).layout, cat), true, "survives the server round trip");
+  assert.equal(L.sig(l), L.sig(L.clone(l)));
+  const moved = L.movePanel(l, l.columns[0].panels[1].id, 1, 0);
+  assert.equal(L.matchesPage(moved, cat), false);
+  assert.notEqual(L.sig(moved), L.sig(l));
+  assert.equal(L.matchesPage(L.setColumn(l, l.columns[0].id, { width: 300 }), cat), false);
+  assert.equal(L.matchesPage(L.setGap(l, { panel: l.columns[0].panels[1].id }, 10), cat), false);
+  const hid = L.clone(l); hid.columns[1].panels[0].hidden = true;
+  assert.equal(L.matchesPage(hid, cat), false);
+  // a widget whose height the page sets itself (e.g. fills the window) still matches at another window size ...
+  const winH = L.clone(l); winH.columns[1].panels[1].height = 300;
+  assert.equal(L.matchesPage(winH, cat), true);
+  // ... unless the height was changed by hand
+  const tall = L.updatePanel(l, l.columns[0].panels[0].id, { height: 260 });
+  assert.equal(tall.columns[0].panels[0].auto, undefined);
+  assert.equal(L.matchesPage(tall, cat), false);
+  assert.equal(L.updatePanel(l, l.columns[0].panels[0].id, { title: "x", height: 200 }).columns[0].panels[0].auto, true, "unchanged height keeps auto");
+  const memo = L.clone(l); memo.columns[0].panels.push({ id: "m", type: "memo", title: "m", text: "x" });
+  assert.equal(L.matchesPage(memo, cat), false);
+  assert.equal(L.matchesPage(L.fromCatalog([{ width: 300, items: [{ key: "x", height: 100 }] }]), cat), false);
+});
+
 test("movePanel within and across columns", () => {
   const l = L.fromCatalog(catalog);
   const [a, b] = l.columns[0].panels.map((p) => p.id);

@@ -37,6 +37,8 @@
   let slots = new Map();         // panelId -> { key, ph, body }
   const touched = new Map();     // element -> original style attribute
   let rafId = 0;
+  let settleTimer = 0;
+  let asIs = "";                 // signature of the layout last found to match the page (nothing drawn)
   // Saved widgets that have not appeared yet: wait while the page keeps adding widgets (up to WAIT_MAX ms, and
   // only while the found set changed in the last WAIT_STILL ms), then mount with what is there. Widgets that show
   // up later (until LATE_MS after load) trigger a new mount; the whole remount runs in one task, so nothing flashes.
@@ -102,6 +104,13 @@
     if (!sel || rememberCloak.last === sel) return;
     rememberCloak.last = sel;
     try { chrome.storage.local.get(k).then((o) => { if (o[k] !== sel) storageSet({ [k]: sel }); }).catch(() => {}); } catch (_e) { contextAlive = false; }
+  }
+  // remember that this page's layout matches the page, so the early script does not hide it on the next load
+  function rememberAsIs(v) {
+    const k = "asis:" + SITE;
+    if (rememberAsIs.last === v) return;
+    rememberAsIs.last = v;
+    try { chrome.storage.local.get(k).then((o) => { if ((o[k] || "") !== v) { if (v) storageSet({ [k]: v }); else chrome.storage.local.remove(k); } }).catch(() => {}); } catch (_e) { contextAlive = false; }
   }
   // elements n levels below the container (no layout checks: the container is hidden while mounted)
   function levelCount(container, n) {
@@ -302,6 +311,8 @@
       if (!catalog.size || [...catalog.values()].some((i) => !i.node.isConnected)) scan();
       return;
     }
+    // the layout was found to match the page: keep the page as it is while its widgets stay
+    if (!S.editMode && asIs && !mounted && !forceFresh && asIs === L.sig(layout) && catalog.size && [...catalog.values()].every((i) => i.node.isConnected)) { uncloak(); return; }
     const fresh = forceFresh || !mounted || !mounted.root.isConnected || !mounted.container.isConnected || [...catalog.values()].some((i) => !i.node.isConnected);
     forceFresh = false;
     if (fresh) {
@@ -326,6 +337,23 @@
         return;
       }
       missingKeys = missing;
+      // a layout that is the page's own arrangement is not drawn at all: the page stays untouched (no moving)
+      if (!S.editMode && layout && !missing.length && L.matchesPage(layout, structure)) {
+        asIs = L.sig(layout);
+        rememberAsIs(asIs);
+        uncloak();
+        say("layout matches the page: left as is (" + catalog.size + " widgets)");
+        document.documentElement.setAttribute("data-pc-asis", "1");
+        return;
+      }
+      if (asIs) { asIs = ""; rememberAsIs(""); }
+      document.documentElement.removeAttribute("data-pc-asis");
+      // only the page's own widgets: the first look may have come before the page settled (styles, fonts, data),
+      // so look again a few times shortly after load; a match then gives the page back untouched
+      if (!S.editMode && layout && Date.now() - loadedAt < 6000 && layout.columns.every((c) => c.panels.every((p) => p.type === "native" && !p.hidden && p.header !== false))) {
+        clearTimeout(settleTimer);
+        settleTimer = setTimeout(() => { if (mounted && !S.editMode && !draft) { forceFresh = true; update(); } }, 1200);
+      }
       if (S.editMode && !draft) { draft = L.clone(freshDraft || !layout ? L.fromCatalog(structure) : layout); freshDraft = false; }
       if (S.editMode) layout = draft;
       const container = detected.container;
@@ -709,10 +737,10 @@
       const left = Math.max(0, rootR.left - r.left);
       const right = Math.max(0, r.right - rootR.right);
       if (!node.classList.contains("pc-proxied")) { node.classList.add("pc-proxied"); passThrough(node); }
-      setStyle(node, "left", Math.round(r.left - base.left) + "px");
-      setStyle(node, "top", Math.round(r.top - base.top) + "px");
-      setStyle(node, "width", Math.round(r.width) + "px");
-      setStyle(node, "height", Math.round(r.height) + "px");
+      setStyle(node, "left", (r.left - base.left) + "px");
+      setStyle(node, "top", (r.top - base.top) + "px");
+      setStyle(node, "width", (r.width) + "px");
+      setStyle(node, "height", (r.height) + "px");
       setStyle(node, "clip-path", top || bottom || left || right ? `inset(${top}px ${right}px ${bottom}px ${left}px)` : "none");
       sizeInner(info, s.hideHeader);
     }
@@ -1230,6 +1258,8 @@
     if ("enabled" in changes && S.enabled === undefined) S.enabled = true;
     if (!S.sites) S.sites = {};
     waitStart = 0;
+    // leaving edit mode or a new layout in view mode: look at the page again (the layout may now match it)
+    if (("editMode" in changes && !S.editMode) || (!S.editMode && ("sites" in changes || "orgConfig" in changes))) { forceFresh = true; asIs = ""; }
     update();
   });
 

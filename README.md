@@ -29,7 +29,7 @@ The page's framework keeps rendering and updating its widgets. Portal Customizer
 | Per page | Turn it on with **Customize this page** in the popup (access to that site is asked once). Layouts are kept per page address; the popup shows the framework found and the widget count. |
 | Edit mode | Shown after an administrator login to the admin server. An edit toolbar appears on the page. |
 | Drag and drop | Move widgets between columns or reorder them; drag a column header to reorder columns. |
-| Size and spacing | Drag a column edge for width, a panel's bottom edge for height; set panel and column gaps one by one or as defaults. A layout made from the page starts with the page's own spacing. |
+| Size and spacing | Drag a column edge for width, a panel's bottom edge for height; set panel and column gaps one by one or as defaults. A layout made from the page starts with the page's own spacing; while it is unchanged the page is left untouched. |
 | Widgets | Keep, hide or remove the page's widgets and hide their titles. Widgets re-created or rendered late by the page are found and placed again. |
 | Extra panels | Image, links (list or banners), memo, web page, video, HTML (unsafe markup removed), carousel, tab feed (collects posts from boards on the same site). |
 | Admin server | Optional server for administrators: layouts sent from the extension, default and scheduled layouts, the pages they apply to, contents (CMS), statistics, extension distribution. See [server/README.md](server/README.md). |

@@ -134,9 +134,9 @@ for (const fw of ["vue3", "vue2", "react", "plain"]) {
   const saved = await getSite(url);
   check(`[${fw}] save keeps the layout for this page`, saved.customized && saved.userLayout && saved.userLayout.columns.length === 3, JSON.stringify(saved).slice(0, 120));
   check(`[${fw}] the saved layout carries the widget rule`, saved.userLayout.site && saved.userLayout.site.level === 2 && saved.userLayout.site.container === rule.container, JSON.stringify(saved.userLayout.site));
-  check(`[${fw}] view mode after save`, (await page.locator("#pc-root").count()) === 1 && (await page.locator("#pc-root.pc-edit").count()) === 0);
-  let bad = await alignedAll(page, TITLES);
-  check(`[${fw}] every widget sits on its slot`, !bad.length, JSON.stringify(bad));
+  // saved without changes: the layout is the page's own arrangement, so the page is left untouched
+  check(`[${fw}] view mode after save leaves the unchanged page as is`, (await page.locator("#pc-root").count()) === 0 && (await page.evaluate(() => document.documentElement.getAttribute("data-pc-asis"))) === "1" && (await page.locator(".pc-proxied").count()) === 0);
+  let bad;
 
   // move Mail to the top of the third column, hide Weather, add a memo
   const l = JSON.parse(JSON.stringify(saved.userLayout));
@@ -271,6 +271,12 @@ for (const fw of ["vue3", "vue2", "react", "plain"]) {
   await page.waitForSelector("#pc-toolbar .pc-primary", { timeout: 5000 }).catch(() => {});
   await page.click("#pc-toolbar .pc-primary");
   await page.waitForTimeout(700);
+  // an unchanged layout is not drawn: add a panel at the bottom of the first column so the layout is drawn
+  // while every widget keeps its place
+  const lb = JSON.parse(JSON.stringify((await getSite(url)).userLayout));
+  lb.columns[0].panels.push({ id: "lookmemo", type: "memo", title: "Memo", text: "m", height: 60 });
+  await setSite(url, { userLayout: lb });
+  await page.waitForTimeout(700);
   const after = { menu: await box("#menu"), tabs: await box("#tabs"), root: await box("#pc-root"), notice: await cardRect(page, "Notice"), weather: await cardRect(page, "Weather") };
   const near = (a, b, keys) => a && b && keys.every((k) => Math.abs(a[k] - b[k]) <= 2);
   check("[look] menu above the widgets stays where it was", near(after.menu, before.menu, ["x", "y", "w", "h"]) && after.menu.vis === "visible", JSON.stringify({ b: before.menu, a: after.menu }));
@@ -312,6 +318,23 @@ for (const fw of ["vue3", "vue2", "react", "plain"]) {
   check("[spacing] every widget stays where it was (column margins, per-column and per-panel gaps)", !bad.length, JSON.stringify(bad));
   const lay = (await getSite(url)).userLayout || {};
   check("[spacing] the measured gaps are kept in the layout", lay.gaps && lay.gaps.panel === 25 && lay.columns[2].panels[1].gap === 0 && lay.columns[2].panels[2].gap === 0, JSON.stringify(lay.gaps));
+  const asIs = () => page.evaluate(() => ({ asis: document.documentElement.getAttribute("data-pc-asis"), root: !!document.getElementById("pc-root"), proxied: document.querySelectorAll(".pc-proxied").length, cloak: !!document.getElementById("pc-cloak") }));
+  let st = await asIs();
+  check("[as is] the page's own arrangement is not redrawn (nothing moved or proxied)", st.asis === "1" && !st.root && !st.proxied, JSON.stringify(st));
+  await page.reload();
+  await page.waitForTimeout(150);
+  st = await asIs();
+  check("[as is] reload does not hide the widget area", !st.cloak && !st.root || st.asis === "1", JSON.stringify(st));
+  await page.waitForTimeout(1600);
+  st = await asIs();
+  check("[as is] after load the page is left as is", st.asis === "1" && !st.root && !st.proxied, JSON.stringify(st));
+  const swapped = JSON.parse(JSON.stringify(lay));
+  swapped.columns[0].panels.reverse();
+  await setSite(url, { userLayout: swapped });
+  await page.waitForTimeout(600);
+  st = await asIs();
+  const a3 = await cardRect(page, "A3");
+  check("[as is] a changed arrangement is drawn", st.root && !st.asis && st.proxied > 0 && a3 && Math.abs(a3.y - before.A1.y) <= 1, JSON.stringify({ st, a3 }));
   await setSite(url, { on: false });
   await page.close();
 }

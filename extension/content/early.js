@@ -11,7 +11,8 @@
   const CK = "cloak:" + SITE;
   let api;
   try { api = chrome.storage.local; } catch (_e) { return; }
-  api.get(["enabled", "sites", "orgConfig", CK]).then((r) => {
+  const AK = "asis:" + SITE;
+  api.get(["enabled", "sites", "orgConfig", CK, AK]).then((r) => {
     if (r.enabled === false) return;
     const st = (r.sites || {})[SITE] || {};
     const org = r.orgConfig;
@@ -20,6 +21,8 @@
     if (!st.on && !orgOn) return;
     const lay = st.customized && st.userLayout ? st.userLayout : orgOn ? org.layout : null;
     if (!lay) return;
+    // last time this layout matched the page and nothing was drawn: do not hide anything
+    if (r[AK] && L && L.sig && L.sig(lay) === r[AK]) return;
     const rule = st.rule || lay.site || (orgOn && org.site) || null;
     const sel = String(r[CK] || (rule && rule.container) || "").trim();
     if (!sel) return;
