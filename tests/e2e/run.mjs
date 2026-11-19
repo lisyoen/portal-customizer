@@ -16,7 +16,7 @@ mf.host_permissions = ["http://*.test/*", "https://intranet.example.com/*"];
 writeFileSync(path.join(ext, "manifest.json"), JSON.stringify(mf));
 
 const LIBS = { "/lib/vue3.js": "vue/dist/vue.global.prod.js", "/lib/vue2.js": "vue2/dist/vue.min.js", "/lib/react.js": "react/umd/react.production.min.js", "/lib/react-dom.js": "react-dom/umd/react-dom.production.min.js" };
-const PAGES = { vue3: "vue3.html", vue2: "vue2.html", react: "react.html", plain: "plain.html", org: "plain.html" };
+const PAGES = { vue3: "vue3.html", vue2: "vue2.html", react: "react.html", plain: "plain.html", org: "plain.html", board: "board.html" };
 const TITLES = ["Notice", "Mail", "Calendar", "News", "Weather", "Links"];
 
 const ctx = await chromium.launchPersistentContext(mkdtempSync(path.join(tmpdir(), "pc-")), {
@@ -252,6 +252,37 @@ for (const fw of ["vue3", "vue2", "react", "plain"]) {
   const c = await cardRect(page, "Mail");
   check("page turned off: no hiding on load", (await page.locator("#pc-cloak").count()) === 0 && c && c.vis === "visible", JSON.stringify(c));
   await setSite(url, { on: true });
+  await page.close();
+}
+
+// the page's own look around the widgets: menu and spacing above them, container box, column dividers
+{
+  const url = "http://board.portal.test/home";
+  const page = await ctx.newPage();
+  await page.goto(url);
+  await page.waitForTimeout(300);
+  const box = (sel) => page.evaluate((q) => { const e = document.querySelector(q); if (!e) return null; const r = e.getBoundingClientRect(); return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height), vis: getComputedStyle(e).visibility }; }, sel);
+  const before = { menu: await box("#menu"), tabs: await box("#tabs"), board: await box(".board"), notice: await cardRect(page, "Notice"), weather: await cardRect(page, "Weather") };
+  await setSite(url, { on: true, rule: { container: ".board", level: 3 } });
+  await sync();
+  await page.reload();
+  await page.waitForTimeout(600);
+  await store({ editMode: true });
+  await page.waitForSelector("#pc-toolbar .pc-primary", { timeout: 5000 }).catch(() => {});
+  await page.click("#pc-toolbar .pc-primary");
+  await page.waitForTimeout(700);
+  const after = { menu: await box("#menu"), tabs: await box("#tabs"), root: await box("#pc-root"), notice: await cardRect(page, "Notice"), weather: await cardRect(page, "Weather") };
+  const near = (a, b, keys) => a && b && keys.every((k) => Math.abs(a[k] - b[k]) <= 2);
+  check("[look] menu above the widgets stays where it was", near(after.menu, before.menu, ["x", "y", "w", "h"]) && after.menu.vis === "visible", JSON.stringify({ b: before.menu, a: after.menu }));
+  check("[look] widget-free part of a column (tabs) stays", near(after.tabs, before.tabs, ["x", "y", "h"]) && after.tabs.vis === "visible", JSON.stringify({ b: before.tabs, a: after.tabs }));
+  check("[look] layout keeps the container's place and spacing", near(after.root, before.board, ["y"]) && near(after.notice, before.notice, ["y"]) && near(after.weather, before.weather, ["y"]), JSON.stringify({ before, after }));
+  const look = await page.evaluate(() => { const r = document.getElementById("pc-root"), cs = getComputedStyle(r), cols = [...r.querySelectorAll(":scope > .pc-col")]; return { borderTop: cs.borderTopWidth + " " + cs.borderTopColor, bg: cs.backgroundColor, shadow: cols.map((c) => getComputedStyle(c).boxShadow) }; });
+  check("[look] container border and background copied", look.borderTop === "3px rgb(51, 68, 85)" && look.bg === "rgb(238, 242, 246)", JSON.stringify(look));
+  check("[look] column divider kept", /204, 0, 0/.test(look.shadow[2] || "") && look.shadow[0] === "none", JSON.stringify(look.shadow));
+  await setSite(url, { on: false });
+  await page.waitForTimeout(500);
+  const off = await box("#menu");
+  check("[look] turning off gives the menu back untouched", near(off, before.menu, ["x", "y", "w", "h"]) && !(await page.evaluate(() => document.querySelector(".pc-part, .pc-proxied"))), JSON.stringify(off));
   await page.close();
 }
 

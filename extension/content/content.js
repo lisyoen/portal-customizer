@@ -81,7 +81,7 @@
   function restoreStyles() {
     for (const [e, s] of touched) { if (s == null) e.removeAttribute("style"); else e.setAttribute("style", s); }
     touched.clear();
-    document.querySelectorAll(".pc-proxied").forEach((n) => n.classList.remove("pc-proxied"));
+    document.querySelectorAll(".pc-proxied").forEach((n) => n.classList.remove("pc-proxied", "pc-part"));
     document.querySelectorAll("[data-pc-container],[data-pc-pass]").forEach((n) => { n.removeAttribute("data-pc-container"); n.removeAttribute("data-pc-pass"); });
   }
   function effectiveLayout() {
@@ -118,6 +118,111 @@
     try { return chrome.storage.local.set(obj); } catch (_e) { contextAlive = false; return Promise.resolve(); }
   }
 
+  // ---------- the page's own look around the widgets ----------
+  // Measured while the page is in its own shape (scan): the container's margin, padding, border and background,
+  // each column element's background and borders, and the widget-free parts above the first widget (menus, tabs,
+  // spacing) of the container and of each column. #pc-root and its columns copy the look; the parts are shown over
+  // their place like the widgets, so a layout made from the page looks like the page.
+  let look = null;
+  function measureLook(r) {
+    const cont = r.container, cr = cont.getBoundingClientRect(), cs = getComputedStyle(cont);
+    const px = (v) => parseFloat(v) || 0;
+    const groups = r.columns.map((c) => c.items.map((it) => it.node));
+    const all = groups.flat();
+    const holds = (e) => all.some((w) => e === w || e.contains(w));
+    // the element of each column: the biggest wrapper below the container holding its widgets and no others
+    const colEls = groups.map((g, gi) => {
+      if (!g.length) return null;
+      const others = groups.filter((_, j) => j !== gi).flat();
+      let a = g[0].parentElement;
+      while (a && a !== cont && !g.every((w) => a.contains(w))) a = a.parentElement;
+      if (!a || a === cont || !cont.contains(a) || others.some((w) => a.contains(w))) return null;
+      while (a.parentElement && a.parentElement !== cont && !others.some((w) => a.parentElement.contains(w))) a = a.parentElement;
+      return a;
+    });
+    const skip = new Set(colEls.filter(Boolean));
+    const firstTops = groups.map((g) => Math.min(...g.map((w) => w.getBoundingClientRect().top)));
+    const shown = (e) => { const st = getComputedStyle(e); return st.display !== "none" && st.visibility !== "hidden" && st.position !== "fixed" && Number(st.opacity) > 0; };
+    const parts = [];
+    const collect = (from, limit, col, ref) => {
+      const walk = (e) => {
+        for (const k of e.children) {
+          if (skip.has(k) || (k.id || "").startsWith("pc-") || /^(SCRIPT|STYLE|TEMPLATE|LINK|META)$/.test(k.tagName)) continue;
+          if (holds(k)) { walk(k); continue; }
+          const kr = k.getBoundingClientRect();
+          if (kr.width < 1 || kr.height < 1 || kr.top >= limit || kr.bottom > limit + 1 || !shown(k)) continue;
+          parts.push({ node: k, col, x: kr.left - ref.left, y: kr.top - ref.top, w: kr.width, h: kr.height, stretch: kr.width > ref.width * 0.6 ? ref.width - kr.width : null });
+        }
+      };
+      walk(from);
+    };
+    const colTops = groups.map((g, i) => (colEls[i] ? colEls[i].getBoundingClientRect().top : firstTops[i]));
+    const minTop = Math.min(...colTops);
+    collect(cont, minTop, null, cr);
+    const borderOf = (st, side) => {
+      const w = px(st["border" + side + "Width"]), style = st["border" + side + "Style"];
+      return w && style !== "none" && style !== "hidden" ? { w, style, color: st["border" + side + "Color"] } : null;
+    };
+    const cols = colEls.map((c, i) => {
+      if (!c) return null;
+      const cr2 = c.getBoundingClientRect(), st = getComputedStyle(c);
+      collect(c, firstTops[i], i, cr2);
+      // borders become outer shadows so they do not take space from the widgets
+      const sh = [];
+      [["Left", -1, 0], ["Right", 1, 0], ["Top", 0, -1], ["Bottom", 0, 1]].forEach(([side, dx, dy]) => {
+        const b = borderOf(st, side);
+        if (b) sh.push(`${dx * b.w}px ${dy * b.w}px 0 0 ${b.color}`);
+      });
+      return { padTop: Math.max(0, Math.round(firstTops[i] - cr2.top)), shadow: sh.join(", "), bg: st.backgroundColor };
+    });
+    const innerTop = cr.top + px(cs.borderTopWidth) + px(cs.paddingTop);
+    const borders = {};
+    for (const side of ["Top", "Right", "Bottom", "Left"]) { const b = borderOf(cs, side); borders[side] = b ? `${b.w}px ${b.style} ${b.color}` : ""; }
+    return {
+      root: { margin: cs.margin, padding: cs.padding, padTop: px(cs.paddingTop) + Math.max(0, Math.round(minTop - innerTop)),
+        borders, bg: cs.backgroundColor, bgImage: cs.backgroundImage, radius: cs.borderRadius },
+      cols, parts,
+    };
+  }
+  function applyRootLook(root) {
+    const lk = look && look.root;
+    if (!lk) return;
+    root.style.margin = lk.margin;
+    root.style.padding = lk.padding;
+    root.style.paddingTop = lk.padTop + "px";
+    for (const side of ["Top", "Right", "Bottom", "Left"]) if (lk.borders[side]) root.style["border" + side] = lk.borders[side];
+    if (!/rgba\(\s*0,\s*0,\s*0,\s*0\s*\)|transparent/.test(lk.bg)) root.style.backgroundColor = lk.bg;
+    if (lk.bgImage && lk.bgImage !== "none") root.style.backgroundImage = lk.bgImage;
+    if (lk.radius && lk.radius !== "0px") root.style.borderRadius = lk.radius;
+  }
+  function applyColumnLook(c, index) {
+    const lk = look && look.cols && look.cols[index];
+    if (!lk) return;
+    if (lk.padTop) c.style.paddingTop = lk.padTop + "px";
+    if (lk.shadow) c.style.boxShadow = lk.shadow;
+    const bg = !/rgba\(\s*0,\s*0,\s*0,\s*0\s*\)|transparent/.test(lk.bg);
+    if (bg) c.style.backgroundColor = lk.bg;
+    if (lk.shadow || bg) c.style.alignSelf = "stretch";
+  }
+  // the widget-free parts follow their anchor (#pc-root or their column) every frame
+  function placeParts(base) {
+    if (!look || !look.parts.length) return;
+    const cols = [...mounted.root.querySelectorAll(":scope > .pc-col")];
+    const rootR = mounted.root.getBoundingClientRect();
+    for (const p of look.parts) {
+      if (!p.node.isConnected) continue;
+      const anchor = p.col == null ? mounted.root : cols[p.col];
+      if (!anchor) { if (p.node.classList.contains("pc-proxied")) resetNode(p.node); continue; }
+      const ar = p.col == null ? rootR : anchor.getBoundingClientRect();
+      if (!p.node.classList.contains("pc-proxied")) { p.node.classList.add("pc-proxied", "pc-part"); passThrough(p.node); }
+      setStyle(p.node, "left", Math.round(ar.left + p.x - base.left) + "px");
+      setStyle(p.node, "top", Math.round(ar.top + p.y - base.top) + "px");
+      setStyle(p.node, "width", Math.round(p.stretch != null ? Math.max(0, ar.width - p.stretch) : p.w) + "px");
+      setStyle(p.node, "height", Math.round(p.h) + "px");
+      setStyle(p.node, "clip-path", "none");
+    }
+  }
+
   // ---------- catalog of the page's widgets ----------
   // Detection needs the page in its own shape, so it only runs while nothing is mounted.
   function probe() { try { document.dispatchEvent(new CustomEvent("pc:probe")); } catch (_e) { /* ignore */ } }
@@ -147,6 +252,7 @@
     // level/count: how many boxes sit at the widget level, to notice cheaply when the page adds a widget later
     detected = { container: r.container, framework: r.framework, mode: r.mode, level: r.level, count: r.level ? levelCount(r.container, r.level) : 0 };
     lastStructure = columns;
+    try { look = measureLook(r); } catch (e) { look = null; console.warn("portal-customizer look", e); }
     try { document.documentElement.setAttribute("data-pc-widgets", String(map.size)); } catch (_e) { /* ignore */ }
     return columns;
   }
@@ -187,6 +293,7 @@
       const container = detected.container;
       const root = el("div", { id: "pc-root" });
       root.style.minHeight = Math.max(200, Math.round(container.getBoundingClientRect().height)) + "px";
+      applyRootLook(root);
       container.parentElement.insertBefore(root, container);
       container.setAttribute("data-pc-container", detected.mode);
       mounted = { container, root };
@@ -262,6 +369,7 @@
   function renderColumn(col, editing, layout, index) {
     const c = el("div", { class: "pc-col" + (col.flex ? " pc-flex" : ""), "data-col": col.id });
     if (!col.flex) c.style.width = col.width + "px";
+    applyColumnLook(c, index);
     // space between columns (left of this column)
     const cg = L.colGap(layout, col);
     c.style.marginLeft = (index === 0 ? 0 : cg) + "px";
@@ -515,7 +623,7 @@
 
   // ---------- positioning the page's widgets ----------
   function resetNode(node) {
-    node.classList.remove("pc-proxied");
+    node.classList.remove("pc-proxied", "pc-part");
     for (const e of [node, ...node.querySelectorAll("*")]) {
       if (touched.has(e)) {
         const s = touched.get(e);
@@ -569,6 +677,7 @@
       setStyle(node, "clip-path", top || bottom || left || right ? `inset(${top}px ${right}px ${bottom}px ${left}px)` : "none");
       sizeInner(info, s.hideHeader);
     }
+    placeParts(base);
     if (stale) { update(); return; }
     rafId = requestAnimationFrame(tick);
   }
