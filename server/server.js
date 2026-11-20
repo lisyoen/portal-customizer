@@ -292,11 +292,25 @@ async function download(url, max) {
   if (out.buf && out.buf.length) return out.buf;
   throw new Error(`직접 연결 실패(${directErr}), curl 실패(${out.error || "응답 없음"})`);
 }
+// Newest extension release: the GitHub API first (always current), then publish/latest.json with a cache-busting
+// query (the raw file is cached by GitHub's CDN for up to 5 minutes, so right after a release it can be stale).
+const GITHUB_API_LATEST = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
+async function githubLatest() {
+  if (!process.env.PC_GITHUB_LATEST) {
+    try {
+      const rel = JSON.parse((await download(GITHUB_API_LATEST, 2 * 1024 * 1024)).toString("utf8"));
+      const v = String(rel.tag_name || "").replace(/^v/, "");
+      const asset = (rel.assets || []).find((a) => a.name === `portal-customizer-v${v}.zip`);
+      if (/^\d+\.\d+\.\d+$/.test(v) && asset) return { version: v, zipUrl: asset.browser_download_url };
+    } catch (_e) { /* API unreachable or rate limited: fall back to the published file */ }
+  }
+  return JSON.parse((await download(GITHUB_LATEST + (GITHUB_LATEST.includes("?") ? "&" : "?") + "t=" + Date.now(), 1024 * 1024)).toString("utf8"));
+}
 route("POST", "/api/extension/github", async (req, res, p, q) => {
   const a = need(req, "admin");
   let info, body;
   try {
-    info = JSON.parse((await download(GITHUB_LATEST, 1024 * 1024)).toString("utf8"));
+    info = await githubLatest();
     if (!/^\d+\.\d+\.\d+$/.test(String(info.version || "")) || !(process.env.PC_GITHUB_LATEST ? /^https?:\/\//.test(String(info.zipUrl || "")) : /^https:\/\/github\.com\//.test(String(info.zipUrl || "")))) throw new Error("최신 버전 정보가 올바르지 않습니다");
     const have = extState().releases.find((x) => x.version === info.version);
     if (have && fs.existsSync(path.join(EXT_DIR, extFile(info.version))) && q.get("force") !== "1") {

@@ -17,6 +17,7 @@ const ghPort = port + 1;
 const gh = { pkg: null, down: false };
 const ghSrv = http.createServer((req, res) => {
   if (gh.down || !gh.pkg) { res.writeHead(503); return res.end(); }
+  req.url = req.url.split("?")[0]; // the server adds a cache-busting query
   if (req.url === "/latest.json") { res.writeHead(200, { "Content-Type": "application/json" }); return res.end(JSON.stringify({ version: gh.pkg.version, zipUrl: `http://127.0.0.1:${ghPort}/redirect` })); }
   if (req.url === "/redirect") { res.writeHead(302, { Location: "/pkg.zip" }); return res.end(); }
   if (req.url === "/pkg.zip") { res.writeHead(200, { "Content-Type": "application/zip" }); return res.end(gh.pkg.buf); }
