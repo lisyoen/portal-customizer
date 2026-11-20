@@ -16,7 +16,7 @@ mf.host_permissions = ["http://*.test/*", "https://intranet.example.com/*"];
 writeFileSync(path.join(ext, "manifest.json"), JSON.stringify(mf));
 
 const LIBS = { "/lib/vue3.js": "vue/dist/vue.global.prod.js", "/lib/vue2.js": "vue2/dist/vue.min.js", "/lib/react.js": "react/umd/react.production.min.js", "/lib/react-dom.js": "react-dom/umd/react-dom.production.min.js" };
-const PAGES = { vue3: "vue3.html", vue2: "vue2.html", react: "react.html", plain: "plain.html", org: "plain.html", board: "board.html", spaced: "spaced.html" };
+const PAGES = { vue3: "vue3.html", vue2: "vue2.html", react: "react.html", plain: "plain.html", org: "plain.html", board: "board.html", spaced: "spaced.html", shell: "shell.html" };
 const TITLES = ["Notice", "Mail", "Calendar", "News", "Weather", "Links"];
 
 const ctx = await chromium.launchPersistentContext(mkdtempSync(path.join(tmpdir(), "pc-")), {
@@ -335,6 +335,47 @@ for (const fw of ["vue3", "vue2", "react", "plain"]) {
   st = await asIs();
   const a3 = await cardRect(page, "A3");
   check("[as is] a changed arrangement is drawn", st.root && !st.asis && st.proxied > 0 && a3 && Math.abs(a3.y - before.A1.y) <= 1, JSON.stringify({ st, a3 }));
+  await setSite(url, { on: false });
+  await page.close();
+}
+
+// app-shell page (no page scroll, columns scroll by themselves): a layout taller than the screen scrolls per column
+{
+  const url = "http://shell.portal.test/home";
+  const page = await ctx.newPage();
+  await page.goto(url);
+  await page.waitForTimeout(300);
+  await setSite(url, { on: true, rule: { container: ".shell", level: 3 } });
+  await sync();
+  await page.reload();
+  await page.waitForTimeout(600);
+  await store({ editMode: true });
+  await page.waitForSelector("#pc-toolbar .pc-primary", { timeout: 5000 }).catch(() => {});
+  await page.click("#pc-toolbar .pc-primary");
+  await page.waitForTimeout(700);
+  const lay = JSON.parse(JSON.stringify((await getSite(url)).userLayout));
+  lay.columns[0].panels[0].height = 1400; delete lay.columns[0].panels[0].auto;
+  await setSite(url, { userLayout: lay });
+  await page.waitForTimeout(800);
+  const colState = () => page.evaluate(() => {
+    const root = document.getElementById("pc-root"); if (!root) return null;
+    const b = root.querySelector(".pc-col-body");
+    const s2 = [...document.querySelectorAll(".card h3")].find((h) => h.textContent === "S2" && !h.closest("#pc-root")).closest(".card").getBoundingClientRect();
+    return { scrollCols: root.classList.contains("pc-scroll-cols"), rootBottom: Math.round(root.getBoundingClientRect().bottom), vh: innerHeight, sh: b.scrollHeight, ch: b.clientHeight, top: b.scrollTop, s2: Math.round(s2.top) };
+  });
+  let st = await colState();
+  check("[scroll] app-shell page: columns scroll by themselves within the screen", st && st.scrollCols && st.rootBottom <= st.vh && st.sh > st.ch + 500, JSON.stringify(st));
+  const s1 = await cardRect(page, "S1");
+  await page.mouse.move(s1.x + 40, s1.y + 120);
+  await page.mouse.wheel(0, 600);
+  await page.waitForTimeout(700);
+  const st2 = await colState();
+  check("[scroll] mouse wheel over a page widget scrolls its column", st2.top > 300 && st2.s2 < st.s2 - 300, JSON.stringify({ st, st2 }));
+  const s3 = await cardRect(page, "S3");
+  check("[scroll] other columns stay put", s3 && Math.abs(s3.y - 56) <= 2, JSON.stringify(s3));
+  await store({ editMode: true }); await page.waitForTimeout(500); await store({ editMode: false }); await page.waitForTimeout(600);
+  const st3 = await colState();
+  check("[scroll] column position kept when the layout is drawn again", st3 && Math.abs(st3.top - st2.top) <= 2, JSON.stringify(st3));
   await setSite(url, { on: false });
   await page.close();
 }

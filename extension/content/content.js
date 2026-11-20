@@ -38,6 +38,7 @@
   const touched = new Map();     // element -> original style attribute
   let rafId = 0;
   let settleTimer = 0;
+  let keptTops = new Map();       // column scroll positions kept across a remount
   let asIs = "";                 // signature of the layout last found to match the page (nothing drawn)
   // Saved widgets that have not appeared yet: wait while the page keeps adding widgets (up to WAIT_MAX ms, and
   // only while the found set changed in the last WAIT_STILL ms), then mount with what is there. Widgets that show
@@ -180,9 +181,15 @@
       const w = px(st["border" + side + "Width"]), style = st["border" + side + "Style"];
       return w && style !== "none" && style !== "hidden" ? { w, style, color: st["border" + side + "Color"] } : null;
     };
+    // a column scrolls on its own when an element between its widgets and the container scrolls vertically
+    const scrolls = groups.map((g) => {
+      if (!g.length) return false;
+      for (let e = g[0].parentElement; e && e !== cont; e = e.parentElement) if (/auto|scroll/.test(getComputedStyle(e).overflowY)) return true;
+      return false;
+    });
     const cols = colEls.map((c, i) => {
       const padTop = Math.max(0, Math.round(firstTops[i] - base));
-      if (!c) return { padTop, shadow: "", bg: "" };
+      if (!c) return { padTop, shadow: "", bg: "", scroll: scrolls[i] };
       const cr2 = c.getBoundingClientRect(), st = getComputedStyle(c);
       // parts are placed from the top-left of our column: the first widget's left edge, the root's inner top
       const wl = Math.min(...groups[i].map((w) => w.getBoundingClientRect().left));
@@ -193,7 +200,7 @@
         const b = borderOf(st, side);
         if (b) sh.push(`${dx * b.w}px ${dy * b.w}px 0 0 ${b.color}`);
       });
-      return { padTop, shadow: sh.join(", "), bg: st.backgroundColor };
+      return { padTop, shadow: sh.join(", "), bg: st.backgroundColor, scroll: scrolls[i] };
     });
     const innerTop = cr.top + px(cs.borderTopWidth) + px(cs.paddingTop);
     const borders = {};
@@ -350,7 +357,10 @@
       document.documentElement.removeAttribute("data-pc-asis");
       // only the page's own widgets: the first look may have come before the page settled (styles, fonts, data),
       // so look again a few times shortly after load; a match then gives the page back untouched
-      if (!S.editMode && layout && Date.now() - loadedAt < 6000 && layout.columns.every((c) => c.panels.every((p) => p.type === "native" && !p.hidden && p.header !== false))) {
+      // (only for a layout with the page's widgets in the page's order and no height set by hand)
+      const sameWidgets = layout && layout.columns.length === structure.length && layout.columns.every((c, ci) => c.panels.length === structure[ci].items.length
+        && c.panels.every((p, pi) => p.type === "native" && !p.hidden && p.header !== false && p.auto && p.key === structure[ci].items[pi].key));
+      if (!S.editMode && sameWidgets && Date.now() - loadedAt < 6000) {
         clearTimeout(settleTimer);
         settleTimer = setTimeout(() => { if (mounted && !S.editMode && !draft) { forceFresh = true; update(); } }, 1200);
       }
@@ -362,7 +372,8 @@
       applyRootLook(root);
       container.parentElement.insertBefore(root, container);
       container.setAttribute("data-pc-container", detected.mode);
-      mounted = { container, root };
+      mounted = { container, root, scroll: scrollMode(root) };
+      if (mounted.scroll) { root.classList.add("pc-scroll-cols"); root.style.minHeight = ""; fitHeight(); }
       say("layout shown: " + catalog.size + " widgets (" + detected.mode + (detected.framework ? ", " + detected.framework : "") + ")" + (missingKeys.length ? ", not on this page: " + missingKeys.length : "") + (S.editMode ? ", editing" : ""));
       document.documentElement.classList.add("pc-active");
       rememberCloak(container);
@@ -378,7 +389,7 @@
   function unmount() {
     if (rafId) cancelAnimationFrame(rafId);
     rafId = 0;
-    if (mounted) mounted.root.remove();
+    if (mounted) { keptTops = new Map([...mounted.root.querySelectorAll(".pc-col-body")].map((b) => [b.dataset.colBody, b.scrollTop])); mounted.root.remove(); }
     mounted = null;
     slots = new Map();
     clearTimers();
@@ -422,8 +433,13 @@
     slots = new Map();
     if (editing) clearTimers();
     usedCache = new Map();
+    // columns that scroll keep their position when the layout is drawn again
+    const bodies = [...root.querySelectorAll(".pc-col-body")];
+    const tops = bodies.length ? new Map(bodies.map((b) => [b.dataset.colBody, b.scrollTop])) : keptTops;
+    keptTops = new Map();
     const cols = layout.columns.map((col, i) => renderColumn(col, editing, layout, i));
     root.replaceChildren(...cols);
+    if (tops.size) root.querySelectorAll(".pc-col-body").forEach((b) => { const v = tops.get(b.dataset.colBody); if (v) b.scrollTop = v; });
     panelCache.forEach((c, id) => { if (!usedCache.has(id)) disposeCtx(c.ctx); });
     panelCache = usedCache;
     usedCache = null;
@@ -453,6 +469,11 @@
       ]));
     }
     const body = el("div", { class: "pc-col-body", "data-col-body": col.id });
+    if (mounted && mounted.scroll) {
+      // the scrollbar sits in the space right of the column (like the page's own), except for the last column
+      const last = index === layout.columns.length - 1;
+      if (!last && scrollbarWidth()) { body.style.marginRight = -scrollbarWidth() + "px"; body.style.scrollbarGutter = "stable"; }
+    }
     let first = true;
     for (const p of col.panels) {
       if (p.hidden && !editing) continue;
@@ -716,11 +737,97 @@
     for (let e = node.parentElement; e && e !== mounted.container; e = e.parentElement) if (!e.hasAttribute("data-pc-pass")) e.setAttribute("data-pc-pass", "");
   }
   function fitBeside() { /* reserved: automatic avoidance of panels floating over the layout */ }
+
+  // ---------- columns that scroll on their own ----------
+  // Pages built as an app shell (no page scroll, each column scrolls, e.g. overflow:hidden above the widget area)
+  // would cut a long layout off. Then each of our columns scrolls by itself, in the height left on screen, and the
+  // mouse wheel over a page widget scrolls the column it sits in.
+  let clipAnc = null;
+  function scrollMode(root) {
+    clipAnc = null;
+    for (let e = root.parentElement; e && e !== document.documentElement; e = e.parentElement) {
+      const oy = getComputedStyle(e).overflowY;
+      if (oy !== "visible") { clipAnc = e; break; }
+    }
+    const pageCols = !!(look && look.cols && look.cols.some((c) => c && c.scroll));
+    const shell = !!clipAnc && /hidden|clip/.test(getComputedStyle(clipAnc).overflowY);
+    return pageCols || shell;
+  }
+  function fitHeight() {
+    if (!mounted || !mounted.scroll) return;
+    const r = mounted.root.getBoundingClientRect();
+    let bottom = window.innerHeight;
+    if (clipAnc && clipAnc.isConnected) bottom = Math.min(bottom, clipAnc.getBoundingClientRect().bottom);
+    const h = Math.max(160, Math.floor(bottom - r.top)) + "px";
+    if (mounted.root.style.height !== h) mounted.root.style.height = h;
+  }
+  let sbw = -1;
+  function scrollbarWidth() {
+    if (sbw >= 0) return sbw;
+    const d = el("div", { style: { position: "absolute", top: "-200px", width: "100px", height: "100px", overflow: "scroll", visibility: "hidden" } });
+    document.body.append(d);
+    sbw = d.offsetWidth - d.clientWidth;
+    d.remove();
+    return sbw;
+  }
+  const nodeBody = new WeakMap(); // page widget -> the column body it is shown in
+  function wheelOn(e) {
+    if (!mounted || !mounted.scroll || S.editMode || e.ctrlKey || !e.deltaY) return;
+    const t = e.target;
+    let body = null;
+    for (const [, s] of slots) {
+      const info = catalog.get(s.key);
+      if (info && info.node.contains(t)) { body = nodeBody.get(info.node); break; }
+    }
+    if (!body) return;
+    // let a scrollable area inside the widget scroll first
+    for (let x = t; x && x !== body; x = x.parentElement) {
+      if (x.nodeType !== 1) continue;
+      const oy = getComputedStyle(x).overflowY;
+      if (/auto|scroll/.test(oy) && x.scrollHeight > x.clientHeight + 1) {
+        if ((e.deltaY < 0 && x.scrollTop > 0) || (e.deltaY > 0 && x.scrollTop + x.clientHeight < x.scrollHeight - 1)) return;
+      }
+      if (x.classList && x.classList.contains("pc-proxied")) break;
+    }
+    const before = body.scrollTop;
+    body.scrollTop += e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * body.clientHeight : e.deltaY;
+    if (body.scrollTop !== before) e.preventDefault();
+  }
+  document.addEventListener("wheel", wheelOn, { capture: true, passive: false });
+  window.addEventListener("resize", () => fitHeight());
+  // frames of the same site inside a widget: forward their wheel too (other sites' frames cannot be reached)
+  const hooked = new WeakSet(), framesSeen = new WeakSet();
+  function hookFrames(node, body) {
+    for (const f of node.tagName === "IFRAME" ? [node] : node.querySelectorAll("iframe")) {
+      // a frame gets a new document when it (re)loads
+      if (!framesSeen.has(f)) { framesSeen.add(f); f.addEventListener("load", () => hookFrames(f, nodeBody.get(node) || body)); }
+      let doc = null;
+      try { doc = f.contentDocument; } catch (_e) { doc = null; }
+      if (!doc || hooked.has(doc)) continue;
+      hooked.add(doc);
+      doc.addEventListener("wheel", (e) => {
+        if (!mounted || !mounted.scroll || S.editMode || e.ctrlKey || !e.deltaY) return;
+        const b = nodeBody.get(node) || body;
+        const se = doc.scrollingElement || doc.documentElement;
+        const view = doc.defaultView;
+        // a frame marked scrolling="no", or whose page hides overflow, does not scroll by itself
+        const rootScrolls = (f.getAttribute("scrolling") || "").toLowerCase() !== "no" && ![doc.documentElement, doc.body].some((x) => x && /hidden|clip/.test(view.getComputedStyle(x).overflowY));
+        for (let x = e.target; x && x.nodeType === 1; x = x.parentElement) {
+          const sc = x === se ? rootScrolls : x !== doc.body && /auto|scroll/.test(view.getComputedStyle(x).overflowY);
+          if (sc && x.scrollHeight > x.clientHeight + 1 && ((e.deltaY < 0 && x.scrollTop > 0) || (e.deltaY > 0 && x.scrollTop + x.clientHeight < x.scrollHeight - 1))) return;
+        }
+        const before = b.scrollTop;
+        b.scrollTop += e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+        if (b.scrollTop !== before) e.preventDefault();
+      }, { passive: false });
+    }
+  }
   function tick() {
     rafId = 0;
     if (!mounted || !contextAlive) return;
     if (!mounted.root.isConnected || !mounted.container.isConnected) { update(); return; }
     fitBeside();
+    fitHeight();
     const cb = mounted.container.getBoundingClientRect();
     const base = { left: cb.left + mounted.container.clientLeft, top: cb.top + mounted.container.clientTop };
     let stale = false;
@@ -731,6 +838,7 @@
       const r = s.ph.getBoundingClientRect();
       const col = s.body.closest(".pc-col-body");
       const clipR = col ? col.getBoundingClientRect() : r;
+      if (col && mounted.scroll && nodeBody.get(node) !== col) { nodeBody.set(node, col); hookFrames(node, col); }
       const rootR = mounted.root.getBoundingClientRect();
       const top = Math.max(0, Math.max(clipR.top, rootR.top) - r.top);
       const bottom = Math.max(0, r.bottom - Math.min(clipR.bottom, rootR.bottom));

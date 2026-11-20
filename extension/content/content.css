@@ -29,6 +29,10 @@ html.pc-active.pc-editing .pc-proxied { pointer-events: none !important; opacity
 .pc-col { position: relative; display: flex; flex-direction: column; flex: 0 0 auto; min-width: 120px; margin: 0; min-height: 0; }
 .pc-col.pc-flex { flex: 1 1 0; }
 .pc-col-body { flex: 1 1 auto; display: flex; flex-direction: column; gap: 0; overflow: visible; min-height: 40px; }
+/* app-shell pages: each column scrolls by itself in the height left on screen */
+#pc-root.pc-scroll-cols { align-items: stretch; overflow: hidden; }
+#pc-root.pc-scroll-cols > .pc-col { align-self: stretch; min-height: 0; }
+#pc-root.pc-scroll-cols .pc-col-body { overflow-x: hidden; overflow-y: auto; min-height: 0; }
 .pc-panel { position: relative; display: flex; flex-direction: column; flex: 0 0 auto; border: 1.2px solid var(--pc-line); min-height: 40px; }
 .pc-panel.pc-fill { flex: 1 1 0; min-height: 160px; }
 .pc-panel.pc-native { border: 0; }
