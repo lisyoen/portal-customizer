@@ -1,6 +1,6 @@
 {
   "name": "portal-customizer-server",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Admin server for Portal Customizer: publishes portal-customizer.json, schedules layouts, manages contents.",
   "license": "BUSL-1.1",
