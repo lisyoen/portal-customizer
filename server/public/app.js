@@ -573,7 +573,7 @@ async function pageClients(filter) {
         h("span", { class: "grow" }), "접속 없음 기준", days, "일", h("button", { class: "small", disabled: !isAdmin, text: "저장", onclick: () => guard(async () => { await api("PUT", "/api/settings", { inactiveDays: Number(days.value) }); pageClients(); }) })]),
       rows.length ? h("table", {}, [h("thead", {}, h("tr", {}, ["이름", "담당자", "마지막 접속", "브라우저", "주소", "버전", "설치 ID", ""].map((t) => h("th", { text: t })))),
         h("tbody", {}, rows.map((c) => h("tr", { style: c.inactive ? { background: c.watch ? "#fdecea" : "#fff8e6" } : {} }, [
-          h("td", {}, [c.watch ? h("span", { class: "badge", text: "관리 " }) : null, h("b", { text: c.name || "" }), c.note ? h("div", { class: "muted", text: c.note }) : null]),
+          h("td", {}, [c.watch ? h("span", { class: "badge", text: "관리 " }) : null, h("b", { text: c.name || "" }), c.name && c.namedBy === "user" ? h("span", { class: "muted", text: " (사용자 지정)" }) : null, c.note ? h("div", { class: "muted", text: c.note }) : null]),
           h("td", { text: c.owner || "" }),
           h("td", { title: c.lastSeen ? fmt(c.lastSeen) : "", text: idle(c) + (c.inactive ? " (접속 없음)" : "") }),
           h("td", { text: [c.browser, c.os].filter(Boolean).join(" · ") }), h("td", { text: c.ip || "" }), h("td", { text: c.version || "" }),
@@ -581,7 +581,7 @@ async function pageClients(filter) {
           h("td", {}, [h("button", { class: "small", text: "이름·담당자", onclick: () => edit(c) }), " ",
             isAdmin ? h("button", { class: "small danger", text: "삭제", onclick: () => confirm("이 설치를 목록에서 지울까요? 다시 접속하면 새로 나타납니다.") && guard(async () => { await api("DELETE", "/api/clients/" + c.id); pageClients(); }) }) : null])])))])
         : h("p", { class: "muted", text: "해당하는 설치가 없습니다." }),
-      h("p", { class: "hint", text: "확장은 처음 설치될 때 만든 임의 설치 ID 로 사내 배치를 받아 가며, 서버는 그때의 시각·버전·브라우저·접속 주소를 기록합니다. 직원 확장 팝업 아래쪽에 그 PC 의 설치 ID 가 보이고, 관리자로 로그인한 팝업에서는 그 PC 의 이름을 바로 지정할 수 있습니다." })])]);
+      h("p", { class: "hint", text: "확장은 처음 설치될 때 만든 임의 설치 ID 로 사내 배치를 받아 가며, 서버는 그때의 시각·버전·브라우저·접속 주소를 기록합니다. 직원 확장 팝업 아래쪽에 그 PC 의 설치 ID 가 보이고, 누구나 팝업에서 그 PC 의 이름을 지정할 수 있습니다(관리자가 여기서 고칠 수 있음)." })])]);
   q.addEventListener("input", () => { pageClients.q = q.value; clearTimeout(pageClients.t); pageClients.t = setTimeout(() => pageClients().then(() => { const n = document.querySelector("input[type=search]"); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }), 300); });
 }
 

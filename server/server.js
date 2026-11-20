@@ -536,13 +536,26 @@ route("PUT", "/api/clients/:id", async (req, res, p) => {
   if (!/^[\w-]{8,40}$/.test(id)) throw fail(400, "설치 ID 가 올바르지 않습니다");
   const all = clientsMap();
   const c = all[id] || (all[id] = { id, firstSeen: now() });
-  if ("name" in b) c.name = str(b.name, 60).trim();
+  if ("name" in b) { c.name = str(b.name, 60).trim(); c.namedBy = "admin"; }
   if ("owner" in b) c.owner = str(b.owner, 60).trim();
   if ("note" in b) c.note = str(b.note, 300).trim();
   if ("watch" in b) c.watch = !!b.watch;
   c.updatedBy = a.user; c.updatedAt = now();
   store.audit(a.user, "설치 PC 정보 변경", c.name || id.slice(0, 8)); store.save();
   return { client: publicClient(c, inactiveDays()) };
+});
+// an installation names itself (the user of that PC, from the extension popup): no login, identified by its id
+route("PUT", "/api/client", async (req, res) => {
+  const id = str(req.headers["x-pc-client"], 40);
+  if (!/^[\w-]{8,40}$/.test(id)) throw fail(400, "설치 ID 가 올바르지 않습니다");
+  const b = await json(req);
+  seeClient(req, id);
+  const c = clientsMap()[id];
+  if (!c) throw fail(503, "설치 목록이 가득 찼습니다");
+  const name = str(b.name, 60).trim();
+  if (c.name !== name) { c.name = name; c.namedBy = "user"; c.updatedAt = now(); store.audit("(PC 사용자)", "PC 이름 지정", name || "(지움)", id.slice(0, 8)); }
+  store.save();
+  return send(res, 200, { client: { name: c.name } }, { "Access-Control-Allow-Origin": "*" });
 });
 route("DELETE", "/api/clients/:id", (req, res, p) => {
   const a = need(req, "admin"); const all = clientsMap(); const c = all[str(p.id, 40)];

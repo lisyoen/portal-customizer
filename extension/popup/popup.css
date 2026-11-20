@@ -36,3 +36,5 @@ a { color: #1a6dff; text-decoration: none; }
 #adminLoginBox .check-row input { width: auto; flex: 0 0 auto; margin: 0; padding: 0; }
 #adminServerAuto { margin: 0 0 4px; }
 .pc-info { margin-top: 8px; border-top: 1px solid #e3e6ee; padding-top: 6px; }
+.pc-name-row { margin-top: 4px; }
+.pc-name-row input { flex: 1; min-width: 0; padding: 5px 8px; border: 1px solid #ccd2de; border-radius: 6px; font: inherit; }

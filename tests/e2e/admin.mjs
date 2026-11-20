@@ -243,14 +243,13 @@ check("extension distribution page opens", (await con.locator("text=배포 중�
   check("popup shows this PC's installation id", (await p2.locator("#pcInfoText").innerText()).includes(cid.slice(0, 8)));
   const listed = await (await fetch(server + "/api/clients", { headers: { Authorization: "Bearer " + tk } })).json();
   check("admin server lists the installation with its browser", listed.clients.some((c) => c.id === cid && c.browser && c.lastSeen), JSON.stringify(listed.clients.map((c) => c.id.slice(0, 8))));
-  await p2.evaluate((o) => chrome.storage.local.set(o), { adminServer: server, adminToken: tk, adminUser: "boss" });
-  await p2.reload();
-  await p2.waitForSelector("#adminBox:not([hidden])", { timeout: 5000 }).catch(() => {});
+  // any user (no admin login) names the PC from the popup, Enter saves
+  check("PC name field is there without an admin login", await p2.locator("#pcName").isVisible() && !(await p2.locator("#adminBox").isVisible()));
   await p2.fill("#pcName", "7층 회의실 A");
-  await p2.click("#pcNameBtn");
+  await p2.press("#pcName", "Enter");
   await p2.waitForFunction(() => /회의실/.test(document.getElementById("pcInfoText").textContent), null, { timeout: 5000 }).catch(() => {});
   const named = await (await fetch(server + "/api/clients", { headers: { Authorization: "Bearer " + tk } })).json();
-  check("administrator names the PC from its popup", named.clients.some((c) => c.id === cid && c.name === "7층 회의실 A") && /7층 회의실 A/.test(await p2.locator("#pcInfoText").innerText()), await p2.locator("#pcInfoText").innerText());
+  check("the PC's user names it from its popup", named.clients.some((c) => c.id === cid && c.name === "7층 회의실 A") && /7층 회의실 A/.test(await p2.locator("#pcInfoText").innerText()), await p2.locator("#pcInfoText").innerText());
   await ctx2.close();
   rmSync(dir, { recursive: true, force: true });
   // installations page: the named PC, edit name / person in charge / watched

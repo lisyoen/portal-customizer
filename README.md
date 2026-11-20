@@ -39,7 +39,7 @@ The page's framework keeps rendering and updating its widgets. Portal Customizer
 
 ## Installations and guide page
 
-- The admin server lists every installation (anonymous install id) with its last check-in, version, browser and network address. Administrators name installations, set a person in charge and mark ones to watch (meeting room PCs); watched installations that stop checking in are flagged.
+- The admin server lists every installation (anonymous install id) with its last check-in, version, browser and network address. Users name their PC from the popup; administrators name installations, set a person in charge and mark ones to watch (meeting room PCs); watched installations that stop checking in are flagged.
 - After install and after updates (at most weekly) the extension opens a guide page: close Edge's developer-mode warning with X instead of turning the extension off, and how to turn it back on. Administrators can add their own notice.
 
 ## Install

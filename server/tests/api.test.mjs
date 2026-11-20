@@ -137,6 +137,12 @@ test("installations: last check-in per extension install, names given by adminis
   assert.ok(c); assert.equal(c.browser, "Edge"); assert.equal(c.os, "Windows"); assert.equal(c.version, "0.2.11"); assert.equal(c.idleDays, 0); assert.equal(c.inactive, false);
   assert.equal(list.inactiveDays, 3);
   assert.equal((await call("PUT", "/api/clients/bad id", { name: "x" })).status, 400);
+  // the PC's user names it from the popup: no login, identified by the installation id
+  const self = await fetch(base + "/api/client", { method: "PUT", headers: { "Content-Type": "application/json", "X-PC-Client": id }, body: JSON.stringify({ name: "내 자리" }) });
+  assert.equal(self.status, 200); assert.equal((await self.json()).client.name, "내 자리");
+  assert.equal(self.headers.get("access-control-allow-origin"), "*");
+  assert.equal((await fetch(base + "/api/client", { method: "PUT", headers: { "Content-Type": "application/json" }, body: "{}" })).status, 400);
+  assert.equal((await call("GET", "/api/clients")).body.clients.find((x) => x.id === id).namedBy, "user");
   const put = await call("PUT", "/api/clients/" + id, { name: "7층 회의실 A", owner: "홍길동", note: "TV 옆", watch: true });
   assert.equal(put.status, 200); assert.equal(put.body.client.name, "7층 회의실 A"); assert.equal(put.body.client.watch, true);
   assert.equal((await call("PUT", "/api/settings", { welcomeNotice: "문의: 내선 1234", inactiveDays: 5 })).status, 200);

@@ -71,8 +71,6 @@
       <p id="adminWho" class="status"></p>
       <div class="row"><input type="text" id="sendName" data-i18n-placeholder="sendNamePlaceholder"><button id="sendBtn" data-i18n="sendToServer">Send</button></div>
       <p id="sendStatus" class="status"></p>
-      <div class="row"><input type="text" id="pcName" data-i18n-placeholder="pcNamePlaceholder"><button id="pcNameBtn" data-i18n="pcNameSave">Name this PC</button></div>
-      <p id="pcNameStatus" class="status"></p>
       <div class="row admin-links"><a href="#" id="openConsole" data-i18n="openConsole">Open admin page</a> · <a href="#" id="useServerOrg" data-i18n="useServerOrg">Use as organization default</a> · <a href="#" id="adminLogout" data-i18n="adminLogout">Log out</a></div>
     </div>
   </section>
@@ -90,7 +88,11 @@
     </div>
     <p class="status"><a href="#" id="checkNow" data-i18n="checkUpdates">Check for updates</a></p>
   </section>
-  <p id="pcInfo" class="status pc-info"><span id="pcInfoText"></span> · <a href="#" id="openGuide" data-i18n="openGuide">Guide</a></p>
+  <section id="pcSec" class="pc-info">
+    <p class="status"><span id="pcInfoText"></span> · <a href="#" id="openGuide" data-i18n="openGuide">Guide</a></p>
+    <div class="row pc-name-row"><input type="text" id="pcName" data-i18n-placeholder="pcNamePlaceholder" maxlength="60"><button id="pcNameBtn" data-i18n="pcNameSave">Name this PC</button></div>
+    <p id="pcNameStatus" class="status"></p>
+  </section>
   <script src="../lib/version.js"></script>
   <script src="../lib/layout.js"></script>
   <script src="popup.js"></script>

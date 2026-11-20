@@ -901,5 +901,8 @@
   },
   "welcomeClose": {
     "message": "Got it"
+  },
+  "pcNoServer": {
+    "message": "No organization address (admin server) to send the name to."
   }
 }

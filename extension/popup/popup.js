@@ -346,17 +346,21 @@ async function renderPcInfo() {
 }
 renderPcInfo();
 $("openGuide").addEventListener("click", (e) => { e.preventDefault(); chrome.tabs.create({ url: chrome.runtime.getURL("welcome/welcome.html?reason=manual") }); });
-// administrators can name the PC they are sitting at (shown on the admin server's installations page)
+// anyone can name the PC they use (shown on the admin server's installations page); it goes to the server of
+// the organization address, identified by this installation's id
 $("pcNameBtn").addEventListener("click", async () => {
   const st = $("pcNameStatus");
-  const s = await local.get(["adminServer", "adminToken", "clientId"]);
+  const s = await local.get(["clientId", "adminServer"]);
   if (!s.clientId) { st.textContent = t("pcNoId"); return; }
+  const server = (await autoServer()) || serverOrigin(s.adminServer || "");
+  if (!server) { st.textContent = t("pcNoServer"); return; }
   st.textContent = "…";
   try {
-    const r = await fetch(s.adminServer + "/api/clients/" + encodeURIComponent(s.clientId), { method: "PUT", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s.adminToken }, body: JSON.stringify({ name: $("pcName").value.trim() }) });
+    const r = await fetch(server + "/api/client", { method: "PUT", headers: { "Content-Type": "application/json", "X-PC-Client": s.clientId, "X-PC-Version": chrome.runtime.getManifest().version }, body: JSON.stringify({ name: $("pcName").value.trim() }) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || "HTTP " + r.status);
     st.textContent = t("pcNameDone", [d.client.name || "-"]);
     chrome.runtime.sendMessage({ type: "fetchOrg" }).then(renderPcInfo).catch(() => {});
   } catch (err) { st.textContent = t("sendFailed", [String(err.message || err)]); }
 });
+$("pcName").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); $("pcNameBtn").click(); } });
