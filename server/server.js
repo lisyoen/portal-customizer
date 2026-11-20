@@ -140,6 +140,38 @@ function published(t) {
   return out;
 }
 
+// ---------- installations (one per extension install, by its anonymous id) ----------
+// last time each installation fetched the layout, its version, browser and address, and the name, person in charge
+// and note an administrator gives it, so installations that stopped checking in (extension turned off,
+// PC off or gone) can be found and looked after (e.g. meeting room PCs).
+const DEFAULT_INACTIVE_DAYS = 3;
+function clientsMap() { const d = S(); if (!d.clients || typeof d.clients !== "object") d.clients = {}; return d.clients; }
+function browserOf(ua) { ua = String(ua || ""); return /Edg\//.test(ua) ? "Edge" : /Whale\//.test(ua) ? "Whale" : /OPR\//.test(ua) ? "Opera" : /Chrome\//.test(ua) ? "Chrome" : ua ? "기타" : ""; }
+function osOf(ua) { ua = String(ua || ""); return /Windows/.test(ua) ? "Windows" : /Mac OS X/.test(ua) ? "macOS" : /Linux/.test(ua) ? "Linux" : ""; }
+function clientIp(req) {
+  const f = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+  return str(f || (req.socket && req.socket.remoteAddress) || "", 60).replace(/^::ffff:/, "");
+}
+function seeClient(req, id) {
+  if (!/^[\w-]{8,40}$/.test(id)) return;
+  const all = clientsMap();
+  let c = all[id];
+  if (!c) {
+    const ids = Object.keys(all);
+    if (ids.length >= 20000) { // drop the oldest unnamed installation
+      const old = ids.filter((k) => !all[k].name).sort((a, b) => String(all[a].lastSeen).localeCompare(String(all[b].lastSeen)))[0];
+      if (old) delete all[old]; else return;
+    }
+    c = all[id] = { id, firstSeen: now() };
+  }
+  c.lastSeen = now();
+  c.version = str(req.headers["x-pc-version"], 20) || c.version || "";
+  const ua = req.headers["user-agent"];
+  c.browser = browserOf(ua) || c.browser || ""; c.os = osOf(ua) || c.os || "";
+  c.ip = clientIp(req) || c.ip || "";
+}
+function inactiveDays() { return Math.max(1, Number((S().settings || {}).inactiveDays) || DEFAULT_INACTIVE_DAYS); }
+
 // ---------- stats ----------
 function day(d) { return (d || new Date()).toISOString().slice(0, 10); }
 function recordFetch(req, servedId) {
@@ -147,7 +179,7 @@ function recordFetch(req, servedId) {
   const d = st[k] || (st[k] = { req: 0, clients: {}, versions: {}, served: {} });
   d.req += 1;
   const client = str(req.headers["x-pc-client"], 40);
-  if (client) d.clients[client] = 1;
+  if (client) { d.clients[client] = 1; seeClient(req, client); }
   const ver = str(req.headers["x-pc-version"], 20) || "unknown";
   d.versions[ver] = (d.versions[ver] || 0) + 1;
   if (servedId) d.served[servedId] = (d.served[servedId] || 0) + 1;
@@ -231,7 +263,7 @@ route("GET", "/ext/:file", (req, res, p) => {
   if (!/^portal-customizer-v\d+\.\d+\.\d+\.zip$/.test(f) || !fs.existsSync(path.join(EXT_DIR, f))) return send(res, 404, { error: "없는 파일입니다" }, EXT_CORS);
   return sendZip(res, extPackage(req, f), f);
 });
-route("GET", "/api/extension", (req) => { need(req); const e = extState(); return { current: e.current, releases: e.releases.slice().sort((a, b) => U.cmpVer(b.version, a.version)), latestUrl: "/ext/latest.json", installUrl: "/ext/install.zip", config: extConfig(req), github: { release: GITHUB_RELEASES } }; });
+route("GET", "/api/extension", (req) => { need(req); const e = extState(); return { current: e.current, releases: e.releases.slice().sort((a, b) => U.cmpVer(b.version, a.version)), latestUrl: "/ext/latest.json", installUrl: "/ext/install.zip", notice: (S().settings || {}).welcomeNotice || "", config: extConfig(req), github: { release: GITHUB_RELEASES } }; });
 route("PUT", "/api/extension", async (req, res, p, q) => {
   const a = need(req, "admin");
   const body = await readBody(req, 100 * 1024 * 1024);
@@ -321,7 +353,14 @@ route("GET", "/portal-customizer.json", (req, res, p, q) => {
   const out = published(t);
   if (!q.get("at")) recordFetch(req, out && out.layoutId);
   if (!out) return send(res, 404, { error: "게시된 배치가 없습니다" }, { "Access-Control-Allow-Origin": "*" });
-  return send(res, 200, out, { "Access-Control-Allow-Origin": "*" });
+  // the name an administrator gave this installation, so it can be shown in its popup; the notice for the
+  // extension's guide page
+  const c = clientsMap()[str(req.headers["x-pc-client"], 40)];
+  const notice = str((S().settings || {}).welcomeNotice, 2000);
+  const extra = {};
+  if (c && c.name) extra.client = { name: c.name };
+  if (notice) extra.notice = notice;
+  return send(res, 200, Object.keys(extra).length ? Object.assign({}, out, extra) : out, { "Access-Control-Allow-Origin": "*" });
 });
 
 route("POST", "/api/login", async (req, res) => {
@@ -480,6 +519,37 @@ route("GET", "/api/stats", (req, res, p, q) => {
   return { days: out, users: allClients.size, versions, served };
 });
 
+// installations
+function publicClient(c, limit) {
+  const since = c.lastSeen ? Math.floor((Date.now() - Date.parse(c.lastSeen)) / 864e5) : null;
+  return Object.assign({}, c, { idleDays: since, inactive: since != null && since >= limit });
+}
+route("GET", "/api/clients", (req) => {
+  need(req); const limit = inactiveDays();
+  const list = Object.values(clientsMap()).map((c) => publicClient(c, limit));
+  // watched and inactive first, then by name, then most recently seen
+  list.sort((a, b) => (b.inactive && b.watch) - (a.inactive && a.watch) || (!!b.name) - (!!a.name) || String(a.name || "").localeCompare(String(b.name || "")) || String(b.lastSeen).localeCompare(String(a.lastSeen)));
+  return { clients: list, inactiveDays: limit, total: list.length, inactive: list.filter((c) => c.inactive).length, watchedInactive: list.filter((c) => c.inactive && c.watch).length };
+});
+route("PUT", "/api/clients/:id", async (req, res, p) => {
+  const a = need(req); const b = await json(req); const id = str(p.id, 40);
+  if (!/^[\w-]{8,40}$/.test(id)) throw fail(400, "설치 ID 가 올바르지 않습니다");
+  const all = clientsMap();
+  const c = all[id] || (all[id] = { id, firstSeen: now() });
+  if ("name" in b) c.name = str(b.name, 60).trim();
+  if ("owner" in b) c.owner = str(b.owner, 60).trim();
+  if ("note" in b) c.note = str(b.note, 300).trim();
+  if ("watch" in b) c.watch = !!b.watch;
+  c.updatedBy = a.user; c.updatedAt = now();
+  store.audit(a.user, "설치 PC 정보 변경", c.name || id.slice(0, 8)); store.save();
+  return { client: publicClient(c, inactiveDays()) };
+});
+route("DELETE", "/api/clients/:id", (req, res, p) => {
+  const a = need(req, "admin"); const all = clientsMap(); const c = all[str(p.id, 40)];
+  if (!c) throw fail(404, "없는 설치입니다");
+  delete all[c.id]; store.audit(a.user, "설치 PC 삭제", c.name || c.id.slice(0, 8)); store.save(); return { ok: true };
+});
+
 // admins & audit
 route("GET", "/api/admins", (req) => { need(req, "admin"); return { admins: S().admins.map(publicAdmin) }; });
 route("POST", "/api/admins", async (req) => { const a = need(req, "admin"); const b = await json(req); const user = str(b.user, 60).trim();
@@ -500,13 +570,15 @@ route("DELETE", "/api/admins/:id", (req, res, p) => { const a = need(req, "admin
 route("GET", "/api/audit", (req, res, p, q) => { need(req, "admin"); const n = Math.min(1000, Number(q.get("limit")) || 200); return { audit: S().audit.slice(0, n) }; });
 
 // settings
-route("GET", "/api/settings", (req) => { need(req); return { settings: Object.assign({ autoUpdate: true, checkMinutes: 1, refreshMinutes: DEFAULT_CLIENT_MINUTES, siteName: "Portal Customizer" }, S().settings), version: VERSION, port: PORT }; });
+route("GET", "/api/settings", (req) => { need(req); return { settings: Object.assign({ autoUpdate: true, checkMinutes: 1, refreshMinutes: DEFAULT_CLIENT_MINUTES, siteName: "Portal Customizer", inactiveDays: DEFAULT_INACTIVE_DAYS, welcomeNotice: "" }, S().settings), version: VERSION, port: PORT }; });
 route("PUT", "/api/settings", async (req) => { const a = need(req, "admin"); const b = await json(req); const s = S().settings;
   if ("publicUrl" in b) { const v = str(b.publicUrl, 300).trim().replace(/\/+$/, ""); if (v && !/^https?:\/\/[^/]+$/.test(v)) throw fail(400, "서버 주소는 http(s)://주소:포트 형식이어야 합니다"); s.publicUrl = v; }
   if ("autoUpdate" in b) s.autoUpdate = !!b.autoUpdate;
   if ("checkMinutes" in b) { s.checkMinutes = Math.min(10080, Math.max(1, Math.round(Number(b.checkMinutes)) || 1)); delete s.checkHours; }
   if ("refreshMinutes" in b) s.refreshMinutes = Math.min(1440, Math.max(1, Math.round(Number(b.refreshMinutes)) || DEFAULT_CLIENT_MINUTES));
   if ("siteName" in b) s.siteName = str(b.siteName, 60);
+  if ("inactiveDays" in b) s.inactiveDays = Math.min(365, Math.max(1, Math.round(Number(b.inactiveDays)) || DEFAULT_INACTIVE_DAYS));
+  if ("welcomeNotice" in b) s.welcomeNotice = str(b.welcomeNotice, 2000).trim();
   // pages the layout applies to (address prefixes, * = anything) and the optional site rule (CSS selectors)
   if ("siteMatch" in b) {
     const list = (Array.isArray(b.siteMatch) ? b.siteMatch : String(b.siteMatch || "").split(/[\s,]+/)).map((x) => str(x, 300).trim()).filter(Boolean);

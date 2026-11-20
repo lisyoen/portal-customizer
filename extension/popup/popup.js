@@ -335,3 +335,28 @@ $("checkNow").addEventListener("click", async (e) => {
 chrome.storage.onChanged.addListener((_c, area) => { if (area === "local") { render(); showUpdate(); } });
 render();
 showUpdate().then(() => chrome.runtime.sendMessage({ type: "checkUpdate" })).then(showUpdate);
+
+// ---------- this installation: id, name given by an administrator, guide ----------
+async function renderPcInfo() {
+  const s = await local.get(["clientId", "orgConfig"]);
+  const name = (s.orgConfig && s.orgConfig.clientName) || "";
+  const id = (s.clientId || "").slice(0, 8);
+  $("pcInfoText").textContent = t("pcInfo", [id || "-"]) + (name ? " · " + t("pcInfoName", [name]) : "");
+  if (document.activeElement !== $("pcName") && !$("pcName").value) $("pcName").value = name;
+}
+renderPcInfo();
+$("openGuide").addEventListener("click", (e) => { e.preventDefault(); chrome.tabs.create({ url: chrome.runtime.getURL("welcome/welcome.html?reason=manual") }); });
+// administrators can name the PC they are sitting at (shown on the admin server's installations page)
+$("pcNameBtn").addEventListener("click", async () => {
+  const st = $("pcNameStatus");
+  const s = await local.get(["adminServer", "adminToken", "clientId"]);
+  if (!s.clientId) { st.textContent = t("pcNoId"); return; }
+  st.textContent = "…";
+  try {
+    const r = await fetch(s.adminServer + "/api/clients/" + encodeURIComponent(s.clientId), { method: "PUT", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s.adminToken }, body: JSON.stringify({ name: $("pcName").value.trim() }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || "HTTP " + r.status);
+    st.textContent = t("pcNameDone", [d.client.name || "-"]);
+    chrome.runtime.sendMessage({ type: "fetchOrg" }).then(renderPcInfo).catch(() => {});
+  } catch (err) { st.textContent = t("sendFailed", [String(err.message || err)]); }
+});

@@ -127,6 +127,30 @@ test("backup round trip", async () => {
   assert.ok((await call("GET", "/api/layouts")).body.layouts.length >= 2);
 });
 
+test("installations: last check-in per extension install, names given by administrators, notice", async () => {
+  const id = "11111111-2222-3333-4444-555555555555";
+  const ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0";
+  const pub = await call("GET", "/portal-customizer.json", undefined, { "X-PC-Client": id, "X-PC-Version": "0.2.11", "User-Agent": ua });
+  assert.equal(pub.status, 200); assert.equal(pub.body.client, undefined);
+  let list = (await call("GET", "/api/clients")).body;
+  const c = list.clients.find((x) => x.id === id);
+  assert.ok(c); assert.equal(c.browser, "Edge"); assert.equal(c.os, "Windows"); assert.equal(c.version, "0.2.11"); assert.equal(c.idleDays, 0); assert.equal(c.inactive, false);
+  assert.equal(list.inactiveDays, 3);
+  assert.equal((await call("PUT", "/api/clients/bad id", { name: "x" })).status, 400);
+  const put = await call("PUT", "/api/clients/" + id, { name: "7층 회의실 A", owner: "홍길동", note: "TV 옆", watch: true });
+  assert.equal(put.status, 200); assert.equal(put.body.client.name, "7층 회의실 A"); assert.equal(put.body.client.watch, true);
+  assert.equal((await call("PUT", "/api/settings", { welcomeNotice: "문의: 내선 1234", inactiveDays: 5 })).status, 200);
+  const pub2 = await call("GET", "/portal-customizer.json", undefined, { "X-PC-Client": id });
+  assert.equal(pub2.body.client.name, "7층 회의실 A"); assert.equal(pub2.body.notice, "문의: 내선 1234");
+  const other = await call("GET", "/portal-customizer.json", undefined, { "X-PC-Client": "99999999-0000" });
+  assert.equal(other.body.client, undefined);
+  list = (await call("GET", "/api/clients")).body;
+  assert.equal(list.inactiveDays, 5); assert.equal(list.clients.find((x) => x.id === id).owner, "홍길동");
+  assert.equal((await call("DELETE", "/api/clients/99999999-0000")).status, 200);
+  assert.ok(!(await call("GET", "/api/clients")).body.clients.some((x) => x.id === "99999999-0000"));
+  assert.equal((await call("PUT", "/api/settings", { welcomeNotice: "" })).status, 200);
+});
+
 test("extension distribution: upload, latest.json, publish, delete", async () => {
   const zip = path.join(data, "pkg.zip");
   execFileSync("bash", [path.join(here, "..", "..", "scripts", "build-zip.sh"), zip]);

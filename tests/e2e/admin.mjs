@@ -206,6 +206,7 @@ check("extension distribution page opens", (await con.locator("text=배포 중�
   await con.reload();
   await con.waitForSelector("h1:has-text('확장 배포')");
   check("distribution page offers the installation package", up.ok && (await con.locator("a.button:has-text('설치본 받기')").count()) === 1 && (await con.locator("code", { hasText: "/ext/install.zip" }).count()) === 1);
+  await fetch(server + "/api/settings", { method: "PUT", headers: { Authorization: "Bearer " + tk, "Content-Type": "application/json" }, body: JSON.stringify({ welcomeNotice: "문의: 내선 1234" }) });
   const inst = await fetch(server + "/ext/install.zip");
   const dir = mkdtempSync(path.join(tmpdir(), "pc-inst-"));
   writeFileSync(path.join(dir, "install.zip"), Buffer.from(await inst.arrayBuffer()));
@@ -230,8 +231,39 @@ check("extension distribution page opens", (await con.locator("text=배포 중�
   check("updates come from the packaged server", src2.source === "server" && src2.latestUrl === server + "/ext/latest.json", JSON.stringify(src2));
   const oc = (await p2.evaluate(() => chrome.storage.local.get("orgConfig"))).orgConfig;
   check("organization layout is fetched from the packaged address", oc && oc.url === server + "/portal-customizer.json", JSON.stringify(oc && { url: oc.url, err: oc.error }) + JSON.stringify(org2));
+  // guide page right after install, with the administrator's notice and this PC's installation id
+  const guide = ctx2.pages().find((pg) => pg.url().includes("/welcome/welcome.html"));
+  if (guide) await guide.waitForFunction(() => !document.getElementById("adminSec").hidden, null, { timeout: 5000 }).catch(() => {});
+  const gtext = guide ? await guide.locator("main").innerText() : "";
+  const cid = (await p2.evaluate(() => chrome.storage.local.get("clientId"))).clientId || "";
+  check("guide page opens after install: close the warning with X, how to turn it back on, admin notice, install id", !!guide && /X/.test(gtext) && /edge:\/\/extensions/.test(gtext) && gtext.includes("문의: 내선 1234") && cid && gtext.includes(cid.slice(0, 8)), gtext.slice(0, 200));
+  // the installation shows up on the admin server; an administrator names it from that PC's popup
+  await p2.reload();
+  await p2.waitForFunction((id) => document.getElementById("pcInfoText").textContent.includes(id), cid.slice(0, 8), { timeout: 5000 }).catch(() => {});
+  check("popup shows this PC's installation id", (await p2.locator("#pcInfoText").innerText()).includes(cid.slice(0, 8)));
+  const listed = await (await fetch(server + "/api/clients", { headers: { Authorization: "Bearer " + tk } })).json();
+  check("admin server lists the installation with its browser", listed.clients.some((c) => c.id === cid && c.browser && c.lastSeen), JSON.stringify(listed.clients.map((c) => c.id.slice(0, 8))));
+  await p2.evaluate((o) => chrome.storage.local.set(o), { adminServer: server, adminToken: tk, adminUser: "boss" });
+  await p2.reload();
+  await p2.waitForSelector("#adminBox:not([hidden])", { timeout: 5000 }).catch(() => {});
+  await p2.fill("#pcName", "7층 회의실 A");
+  await p2.click("#pcNameBtn");
+  await p2.waitForFunction(() => /회의실/.test(document.getElementById("pcInfoText").textContent), null, { timeout: 5000 }).catch(() => {});
+  const named = await (await fetch(server + "/api/clients", { headers: { Authorization: "Bearer " + tk } })).json();
+  check("administrator names the PC from its popup", named.clients.some((c) => c.id === cid && c.name === "7층 회의실 A") && /7층 회의실 A/.test(await p2.locator("#pcInfoText").innerText()), await p2.locator("#pcInfoText").innerText());
   await ctx2.close();
   rmSync(dir, { recursive: true, force: true });
+  // installations page: the named PC, edit name / person in charge / watched
+  await con.click("nav.side a[href='#/clients']");
+  await con.waitForSelector("h1:has-text('설치 PC')");
+  check("installations page lists the named PC", (await con.locator("td b", { hasText: "7층 회의실 A" }).count()) === 1);
+  await con.locator("tr", { hasText: "7층 회의실 A" }).locator("button:has-text('이름·담당자')").click();
+  await con.locator(".modal .field:has-text('담당자') input").fill("홍길동");
+  await con.locator(".modal label:has-text('관리 대상') input").check();
+  await con.locator(".modal button.primary:has-text('저장')").click();
+  await con.waitForTimeout(500);
+  const after = await (await fetch(server + "/api/clients", { headers: { Authorization: "Bearer " + tk } })).json();
+  check("person in charge and watched flag saved", after.clients.some((c) => c.id === cid && c.owner === "홍길동" && c.watch), JSON.stringify(after.clients.find((c) => c.id === cid)));
 }
 await con.click("nav.side a[href='#/manual']");
 await con.waitForSelector(".doc h3");

@@ -138,8 +138,7 @@ async function fetchOrg() {
     return { ok: true, empty: true };
   }
   try {
-    let { clientId } = await chrome.storage.local.get("clientId");
-    if (!clientId) { clientId = crypto.randomUUID(); await chrome.storage.local.set({ clientId }); }
+    const clientId = await ensureClientId();
     // anonymous install id and version: lets the admin server count users (no personal data)
     const res = await fetch(url + (url.includes("?") ? "&" : "?") + "_kc=" + Date.now(), { cache: "no-store", headers: { "X-PC-Client": clientId, "X-PC-Version": currentVersion() } });
     if (!res.ok) throw new Error("HTTP " + res.status);
@@ -148,10 +147,12 @@ async function fetchOrg() {
     if (!r.ok) throw new Error(r.error);
     const version = r.layout.version || PCLayout.hash(text);
     const raw = JSON.parse(text);
-    const orgConfig = { url, managed, version, name: r.layout.name || "", layout: r.layout, match: siteList(raw.match), site: siteRuleOf(raw.site) || r.layout.site || null, fetchedAt: Date.now(), error: null };
+    const orgConfig = { url, managed, version, name: r.layout.name || "", layout: r.layout, match: siteList(raw.match), site: siteRuleOf(raw.site) || r.layout.site || null, fetchedAt: Date.now(), error: null,
+      notice: String(raw.notice || "").slice(0, 2000), clientName: String((raw.client && raw.client.name) || "").slice(0, 60) };
     // Avoid storage churn (and page re-renders) when nothing changed.
     if (!prev || prev.version !== version || prev.url !== url || prev.error || (prev.layout && prev.layout.refreshMinutes) !== r.layout.refreshMinutes
-      || JSON.stringify(prev.match) !== JSON.stringify(orgConfig.match) || JSON.stringify(prev.site) !== JSON.stringify(orgConfig.site)) await chrome.storage.local.set({ orgConfig });
+      || JSON.stringify(prev.match) !== JSON.stringify(orgConfig.match) || JSON.stringify(prev.site) !== JSON.stringify(orgConfig.site)
+      || (prev.notice || "") !== orgConfig.notice || (prev.clientName || "") !== orgConfig.clientName) await chrome.storage.local.set({ orgConfig });
     else await chrome.storage.local.set({ orgCheckedAt: Date.now() });
     await scheduleOrg();
     return { ok: true, version };
@@ -266,10 +267,28 @@ function schedule() {
   scheduleOrg();
 }
 
+// anonymous id of this installation: lets the admin server count installations and name each PC
+async function ensureClientId() {
+  let { clientId } = await chrome.storage.local.get("clientId");
+  if (!clientId) { clientId = crypto.randomUUID(); await chrome.storage.local.set({ clientId }); }
+  return clientId;
+}
+// Guide page after install and after an update (at most once a week): how to close Edge's developer mode
+// warning without turning the extension off, and how to turn it back on.
+const WELCOME_EVERY = 7 * 864e5;
+async function openWelcome(reason) {
+  const { welcomeShownAt } = await chrome.storage.local.get("welcomeShownAt");
+  if (reason === "update" && welcomeShownAt && Date.now() - welcomeShownAt < WELCOME_EVERY) return;
+  await chrome.storage.local.set({ welcomeShownAt: Date.now() });
+  chrome.tabs.create({ url: chrome.runtime.getURL("welcome/welcome.html?reason=" + reason) });
+}
+
 loadPackagedConfig();
 chrome.runtime.onInstalled.addListener(async (details) => {
   schedule();
   await loadPackagedConfig();
+  await ensureClientId();
+  if (details.reason === "install" || details.reason === "update") openWelcome(details.reason).catch(() => {});
   if (details.reason === "install") await chrome.storage.local.set({ enabled: true, editMode: false, sites: {} });
   await syncScripts();
   const { justUpdatedFrom } = await chrome.storage.local.get("justUpdatedFrom");

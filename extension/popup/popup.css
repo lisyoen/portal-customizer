@@ -35,3 +35,4 @@ a { color: #1a6dff; text-decoration: none; }
 .check-row { display: flex; align-items: center; justify-content: flex-start; gap: 6px; font-size: 12px; margin: 4px 0; cursor: pointer; }
 #adminLoginBox .check-row input { width: auto; flex: 0 0 auto; margin: 0; padding: 0; }
 #adminServerAuto { margin: 0 0 4px; }
+.pc-info { margin-top: 8px; border-top: 1px solid #e3e6ee; padding-top: 6px; }

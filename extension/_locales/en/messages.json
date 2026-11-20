@@ -804,5 +804,102 @@
   },
   "orgPackaged": {
     "message": "Using the organization address that came with the installation package."
+  },
+  "pcInfo": {
+    "message": "Installation ID $p1$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "pcInfoName": {
+    "message": "name $p1$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "openGuide": {
+    "message": "Guide"
+  },
+  "pcNamePlaceholder": {
+    "message": "Name of this PC (e.g. Meeting room A)"
+  },
+  "pcNameSave": {
+    "message": "Name this PC"
+  },
+  "pcNameDone": {
+    "message": "This PC is now named '$p1$'.",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "pcNoId": {
+    "message": "No installation ID yet. Load the organization layout once, then try again."
+  },
+  "welcomeTitleInstall": {
+    "message": "Portal Customizer is installed"
+  },
+  "welcomeTitleUpdate": {
+    "message": "Portal Customizer was updated to v$p1$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "welcomeTitleManual": {
+    "message": "Portal Customizer guide"
+  },
+  "welcomeWarnHead": {
+    "message": "Close the warning at browser start with X"
+  },
+  "welcomeWarnBody": {
+    "message": "This extension is distributed by your organization, so Edge may show a 'developer mode extensions' warning at the top right every time it starts. The [Turn off] button in it turns the extension off. Close the warning with the X at its top right to keep using it."
+  },
+  "welcomeDo": {
+    "message": "Close it with X"
+  },
+  "welcomeDont": {
+    "message": "Do not press [Turn off]"
+  },
+  "welcomeMockTitle": {
+    "message": "Turn off extensions in developer mode"
+  },
+  "welcomeMockBody": {
+    "message": "Extensions running in developer mode can harm your device."
+  },
+  "welcomeMockOff": {
+    "message": "Turn off"
+  },
+  "welcomeReHead": {
+    "message": "If you already pressed [Turn off]"
+  },
+  "welcomeRe1": {
+    "message": "Type edge://extensions in the address bar to open the extensions page."
+  },
+  "welcomeRe2": {
+    "message": "Turn on Developer mode."
+  },
+  "welcomeRe3": {
+    "message": "Turn Portal Customizer back on."
+  },
+  "welcomeAdminHead": {
+    "message": "From your administrator"
+  },
+  "welcomeId": {
+    "message": "Installation ID of this PC: $p1$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "welcomeClose": {
+    "message": "Got it"
   }
 }

@@ -81,7 +81,7 @@ function renderLogin(msg) {
     h("button", { class: "primary", style: { width: "100%" }, text: "로그인", onclick: go })]));
   user.focus();
 }
-const PAGES = [["layouts", "배치"], ["contents", "콘텐츠(CMS)"], ["stats", "통계"], ["admins", "관리자·감사 로그"], ["extension", "확장 배포"], ["settings", "설정·업데이트"], ["manual", "매뉴얼"], ["license", "라이선스"]];
+const PAGES = [["layouts", "배치"], ["contents", "콘텐츠(CMS)"], ["stats", "통계"], ["clients", "설치 PC"], ["admins", "관리자·감사 로그"], ["extension", "확장 배포"], ["settings", "설정·업데이트"], ["manual", "매뉴얼"], ["license", "라이선스"]];
 function shell(active, content) {
   $app.replaceChildren(h("div", { class: "layout" }, [
     h("nav", { class: "side" }, [h("a", { class: "brand", href: "#/layouts", title: "배치 목록으로", id: "brand", onclick: () => { if (location.hash === "#/layouts") route(); } }, [h("img", { src: "favicon.svg", alt: "" }), siteName]), versionBox(),
@@ -140,6 +140,7 @@ function route() {
   if (page === "layout" && id) return pageLayout(id);
   if (page === "contents") return pageContents(id);
   if (page === "stats") return pageStats();
+  if (page === "clients") return pageClients();
   if (page === "admins" && me.role === "admin") return pageAdmins();
   if (page === "settings") return pageSettings();
   if (page === "extension") return pageExtension();
@@ -185,6 +186,10 @@ async function pageExtension() {
           await guard(async () => { const r = await api("PUT", `/api/extension?publish=${publish.checked ? 1 : 0}&notes=${encodeURIComponent(notes.value)}`, f, "application/zip"); toast(`v${r.release.version} 을(를) 올렸습니다`); pageExtension(); });
         } }),
         d.current ? h("button", { disabled: !isAdmin, text: "배포 중지", onclick: () => confirm("확장 배포를 중지할까요? 직원 확장은 새 버전을 받지 못합니다.") && guard(async () => { await api("POST", "/api/extension/unpublish"); pageExtension(); }) }) : null])]),
+    h("div", { class: "card" }, [h("h2", { style: { marginTop: 0 }, text: "확장 안내 페이지" }),
+      h("p", { class: "muted", text: "직원 확장은 설치 직후와 업데이트 직후(7일에 한 번까지) 안내 페이지를 엽니다. Edge 를 켤 때 뜨는 개발자 모드 경고창에서 '끄기' 대신 X 로 닫으라는 안내와 다시 켜는 방법이 들어 있습니다. 아래에 적은 문구는 그 페이지에 '관리자 안내'로 함께 표시됩니다(예: 문의처)." }),
+      (() => { const ta = h("textarea", { id: "welcomeNotice", rows: 3, style: { width: "100%" }, placeholder: "예: 문의: DevOps사업그룹 이창연 프로 (내선 1234)" }); ta.value = d.notice || ""; return ta; })(),
+      h("button", { class: "primary", disabled: !isAdmin, style: { marginTop: "6px" }, text: "저장", onclick: () => guard(async () => { await api("PUT", "/api/settings", { welcomeNotice: document.getElementById("welcomeNotice").value }); toast("저장했습니다"); }) })]),
     h("div", { class: "card" }, [h("h2", { style: { marginTop: 0 }, text: "올린 패키지" }),
       d.releases.length ? h("table", {}, [h("thead", {}, h("tr", {}, ["버전", "올린 시각", "올린 사람", "크기", "변경 내용", ""].map((t) => h("th", { text: t })))),
         h("tbody", {}, d.releases.map((r) => h("tr", {}, [
@@ -527,6 +532,57 @@ async function pageStats() {
     h("div", { class: "row", style: { alignItems: "flex-start" } }, [h("div", { class: "card grow" }, [h("b", { text: "노출된 배치" }), table(d.served, ["배치", "요청"])]),
       h("div", { class: "card grow" }, [h("b", { text: "확장 버전" }), table(d.versions, ["버전", "요청"])])]),
     h("div", { class: "hint", text: "사용자 수는 확장이 처음 설치될 때 만든 임의 식별값으로 셉니다(개인 정보 없음)." })]);
+}
+
+// ---------- installations: name each PC, find the ones that stopped checking in ----------
+async function pageClients(filter) {
+  const d = await api("GET", "/api/clients");
+  const isAdmin = me.role === "admin";
+  const mode = filter || pageClients.mode || "all"; pageClients.mode = mode;
+  const days = h("input", { type: "number", min: 1, max: 365, value: d.inactiveDays, style: { width: "70px" } });
+  const q = h("input", { type: "search", placeholder: "이름·담당자·ID·주소 검색", style: { width: "220px" }, value: pageClients.q || "" });
+  const rows = d.clients.filter((c) => mode === "inactive" ? c.inactive : mode === "watch" ? c.watch : mode === "named" ? !!c.name : true)
+    .filter((c) => { const t = (pageClients.q || "").toLowerCase(); return !t || [c.name, c.owner, c.note, c.id, c.ip].some((x) => String(x || "").toLowerCase().includes(t)); });
+  const idle = (c) => c.idleDays == null ? "-" : c.idleDays === 0 ? "오늘" : c.idleDays + "일 전";
+  const edit = (c) => {
+    const name = h("input", { type: "text", value: c.name || "", placeholder: "예: 7층 회의실 A" });
+    const owner = h("input", { type: "text", value: c.owner || "", placeholder: "담당자" });
+    const note = h("input", { type: "text", value: c.note || "", placeholder: "메모" });
+    const watch = h("input", { type: "checkbox", checked: !!c.watch });
+    const back = h("div", { class: "modal-back" });
+    const close = () => back.remove();
+    back.append(h("div", { class: "modal" }, [h("h3", { text: "설치 PC 정보" }),
+      h("p", { class: "muted", text: `설치 ID ${c.id.slice(0, 8)} · ${c.browser || "-"} ${c.os || ""} · ${c.ip || "-"} · v${c.version || "-"}` }),
+      h("div", { class: "field" }, [h("label", { text: "이름" }), name]), h("div", { class: "field" }, [h("label", { text: "담당자" }), owner]),
+      h("div", { class: "field" }, [h("label", { text: "메모" }), note]),
+      h("label", { class: "row" }, [watch, "관리 대상(회의실 등): 접속이 끊기면 맨 위에 경고로 표시"]),
+      h("div", { class: "row", style: { justifyContent: "flex-end", marginTop: "10px" } }, [h("button", { text: "취소", onclick: close }),
+        h("button", { class: "primary", text: "저장", onclick: () => guard(async () => { await api("PUT", "/api/clients/" + c.id, { name: name.value, owner: owner.value, note: note.value, watch: watch.checked }); close(); toast("저장했습니다"); pageClients(); }) })])]));
+    document.body.append(back); name.focus();
+  };
+  const tab = (k, label) => h("button", { class: mode === k ? "primary small" : "small", text: label, onclick: () => pageClients(k) });
+  shell("clients", [h("h1", { text: "설치 PC" }),
+    d.watchedInactive ? h("div", { class: "card", style: { background: "#fdecea", borderColor: "#f5c2c0" } }, [h("b", { text: `관리 대상 ${d.watchedInactive}대가 ${d.inactiveDays}일 넘게 접속하지 않았습니다.` }),
+      h("span", { class: "muted", text: " 확장이 꺼졌거나(Edge 개발자 모드 경고창의 '끄기') PC 가 꺼져 있을 수 있습니다. 담당자에게 확인을 요청하세요." })]) : null,
+    h("div", { class: "row" }, [
+      h("div", { class: "card grow" }, [h("div", { class: "muted", text: "전체 설치" }), h("div", { style: { fontSize: "28px", fontWeight: 700 }, text: String(d.total) })]),
+      h("div", { class: "card grow" }, [h("div", { class: "muted", text: `${d.inactiveDays}일 넘게 접속 없음` }), h("div", { style: { fontSize: "28px", fontWeight: 700, color: d.inactive ? "#c62828" : "" }, text: String(d.inactive) })]),
+      h("div", { class: "card grow" }, [h("div", { class: "muted", text: "관리 대상 중 접속 없음" }), h("div", { style: { fontSize: "28px", fontWeight: 700, color: d.watchedInactive ? "#c62828" : "" }, text: String(d.watchedInactive) })])]),
+    h("div", { class: "card" }, [
+      h("div", { class: "row" }, [tab("all", "전체"), tab("inactive", "접속 없음"), tab("watch", "관리 대상"), tab("named", "이름 있음"), q,
+        h("span", { class: "grow" }), "접속 없음 기준", days, "일", h("button", { class: "small", disabled: !isAdmin, text: "저장", onclick: () => guard(async () => { await api("PUT", "/api/settings", { inactiveDays: Number(days.value) }); pageClients(); }) })]),
+      rows.length ? h("table", {}, [h("thead", {}, h("tr", {}, ["이름", "담당자", "마지막 접속", "브라우저", "주소", "버전", "설치 ID", ""].map((t) => h("th", { text: t })))),
+        h("tbody", {}, rows.map((c) => h("tr", { style: c.inactive ? { background: c.watch ? "#fdecea" : "#fff8e6" } : {} }, [
+          h("td", {}, [c.watch ? h("span", { class: "badge", text: "관리 " }) : null, h("b", { text: c.name || "" }), c.note ? h("div", { class: "muted", text: c.note }) : null]),
+          h("td", { text: c.owner || "" }),
+          h("td", { title: c.lastSeen ? fmt(c.lastSeen) : "", text: idle(c) + (c.inactive ? " (접속 없음)" : "") }),
+          h("td", { text: [c.browser, c.os].filter(Boolean).join(" · ") }), h("td", { text: c.ip || "" }), h("td", { text: c.version || "" }),
+          h("td", {}, [h("code", { text: c.id.slice(0, 8) })]),
+          h("td", {}, [h("button", { class: "small", text: "이름·담당자", onclick: () => edit(c) }), " ",
+            isAdmin ? h("button", { class: "small danger", text: "삭제", onclick: () => confirm("이 설치를 목록에서 지울까요? 다시 접속하면 새로 나타납니다.") && guard(async () => { await api("DELETE", "/api/clients/" + c.id); pageClients(); }) }) : null])])))])
+        : h("p", { class: "muted", text: "해당하는 설치가 없습니다." }),
+      h("p", { class: "hint", text: "확장은 처음 설치될 때 만든 임의 설치 ID 로 사내 배치를 받아 가며, 서버는 그때의 시각·버전·브라우저·접속 주소를 기록합니다. 직원 확장 팝업 아래쪽에 그 PC 의 설치 ID 가 보이고, 관리자로 로그인한 팝업에서는 그 PC 의 이름을 바로 지정할 수 있습니다." })])]);
+  q.addEventListener("input", () => { pageClients.q = q.value; clearTimeout(pageClients.t); pageClients.t = setTimeout(() => pageClients().then(() => { const n = document.querySelector("input[type=search]"); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }), 300); });
 }
 
 // ---------- admins & audit ----------

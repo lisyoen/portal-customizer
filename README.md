@@ -37,6 +37,11 @@ The page's framework keeps rendering and updating its widgets. Portal Customizer
 | Export / import | Save a layout as JSON and load it again. |
 | One-click updates | When an administrator uploads a new version on the admin server's **확장 배포** page, the icon shows **NEW**; one click installs it. |
 
+## Installations and guide page
+
+- The admin server lists every installation (anonymous install id) with its last check-in, version, browser and network address. Administrators name installations, set a person in charge and mark ones to watch (meeting room PCs); watched installations that stop checking in are flagged.
+- After install and after updates (at most weekly) the extension opens a guide page: close Edge's developer-mode warning with X instead of turning the extension off, and how to turn it back on. Administrators can add their own notice.
+
 ## Install
 
 Developer mode install (Chrome, Edge and other Chromium browsers).
