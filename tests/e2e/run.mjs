@@ -373,6 +373,11 @@ for (const fw of ["vue3", "vue2", "react", "plain"]) {
   check("[scroll] mouse wheel over a page widget scrolls its column", st2.top > 300 && st2.s2 < st.s2 - 300, JSON.stringify({ st, st2 }));
   const s3 = await cardRect(page, "S3");
   check("[scroll] other columns stay put", s3 && Math.abs(s3.y - 56) <= 2, JSON.stringify(s3));
+  // a widget taking focus scrolls overflow-hidden ancestors the user cannot scroll back: they are put back
+  const shifted = await page.evaluate(() => { const f = document.querySelector(".frame"); f.scrollTop = 50; return f.scrollTop; });
+  await page.waitForTimeout(200);
+  const back = await page.evaluate(() => ({ frame: document.querySelector(".frame").scrollTop, rootTop: Math.round(document.getElementById("pc-root").getBoundingClientRect().top) }));
+  check("[scroll] overflow-hidden ancestors scrolled by focus are put back", shifted === 50 && back.frame === 0 && back.rootTop === 40, JSON.stringify({ shifted, back }));
   await store({ editMode: true }); await page.waitForTimeout(500); await store({ editMode: false }); await page.waitForTimeout(600);
   const st3 = await colState();
   check("[scroll] column position kept when the layout is drawn again", st3 && Math.abs(st3.top - st2.top) <= 2, JSON.stringify(st3));

@@ -373,6 +373,7 @@
       container.parentElement.insertBefore(root, container);
       container.setAttribute("data-pc-container", detected.mode);
       mounted = { container, root, scroll: scrollMode(root) };
+      lockScroll();
       if (mounted.scroll) { root.classList.add("pc-scroll-cols"); root.style.minHeight = ""; fitHeight(); }
       say("layout shown: " + catalog.size + " widgets (" + detected.mode + (detected.framework ? ", " + detected.framework : "") + ")" + (missingKeys.length ? ", not on this page: " + missingKeys.length : "") + (S.editMode ? ", editing" : ""));
       document.documentElement.classList.add("pc-active");
@@ -389,6 +390,7 @@
   function unmount() {
     if (rafId) cancelAnimationFrame(rafId);
     rafId = 0;
+    locked = [];
     if (mounted) { keptTops = new Map([...mounted.root.querySelectorAll(".pc-col-body")].map((b) => [b.dataset.colBody, b.scrollTop])); mounted.root.remove(); }
     mounted = null;
     slots = new Map();
@@ -738,6 +740,29 @@
   }
   function fitBeside() { /* reserved: automatic avoidance of panels floating over the layout */ }
 
+  // ---------- areas the user cannot scroll stay where they are ----------
+  // The page's widgets now sit over our slots; when one of them takes focus (a click in a frame, a link, a script)
+  // the browser scrolls its ancestors to show it, including boxes with overflow hidden that the user cannot
+  // scroll back (the whole page then slides up under the menu). While the layout is shown, those ancestors keep
+  // the scroll position they had when it was drawn.
+  let locked = [];
+  function lockScroll() {
+    locked = [];
+    if (!mounted) return;
+    for (let e = mounted.root.parentElement; e && e !== document.documentElement; e = e.parentElement) {
+      const st = getComputedStyle(e);
+      if (/hidden|clip/.test(st.overflowY) || /hidden|clip/.test(st.overflowX)) locked.push({ el: e, top: e.scrollTop, left: e.scrollLeft });
+    }
+  }
+  function keepLocked(only) {
+    for (const l of locked) {
+      if (only && l.el !== only) continue;
+      if (l.el.scrollTop !== l.top) l.el.scrollTop = l.top;
+      if (l.el.scrollLeft !== l.left) l.el.scrollLeft = l.left;
+    }
+  }
+  document.addEventListener("scroll", (e) => { if (mounted && locked.length && e.target && e.target.nodeType === 1) keepLocked(e.target); }, true);
+
   // ---------- columns that scroll on their own ----------
   // Pages built as an app shell (no page scroll, each column scrolls, e.g. overflow:hidden above the widget area)
   // would cut a long layout off. Then each of our columns scrolls by itself, in the height left on screen, and the
@@ -827,6 +852,7 @@
     if (!mounted || !contextAlive) return;
     if (!mounted.root.isConnected || !mounted.container.isConnected) { update(); return; }
     fitBeside();
+    keepLocked();
     fitHeight();
     const cb = mounted.container.getBoundingClientRect();
     const base = { left: cb.left + mounted.container.clientLeft, top: cb.top + mounted.container.clientTop };
