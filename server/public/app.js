@@ -155,10 +155,29 @@ async function pageExtension() {
   const notes = h("textarea", { rows: 3, placeholder: "변경 내용(선택)", style: { width: "100%" } });
   const publish = h("input", { type: "checkbox", checked: true });
   const latest = location.origin + d.latestUrl;
+  const install = location.origin + d.installUrl;
+  const gh = async (force) => {
+    const btn = document.getElementById("ghBtn"); if (btn) { btn.disabled = true; btn.textContent = "GitHub 에서 받는 중…"; }
+    const r = await guard(() => api("POST", `/api/extension/github?publish=${publish.checked ? 1 : 0}${force ? "&force=1" : ""}`));
+    if (r) toast(r.already ? `v${r.release.version} 은(는) 이미 받아 두었습니다${r.current === r.release.version ? " (배포 중)" : ""}` : `GitHub 최신 v${r.release.version} 을(를) 받았습니다`);
+    else document.getElementById("ghManual").hidden = false;
+    pageExtension();
+  };
   shell("extension", [h("h1", { text: "확장 배포" }),
+    h("div", { class: "card" }, [h("h2", { style: { marginTop: 0 }, text: "처음 설치하는 직원용 설치본" }),
+      d.current ? h("div", {}, [
+        h("div", { class: "row" }, [h("a", { class: "button primary", href: d.installUrl, text: `설치본 받기 (v${d.current})` }), h("code", { text: install }), h("button", { class: "small", text: "주소 복사", onclick: () => copyText(install) })]),
+        h("p", { class: "muted", html: "설치본에는 이 서버의 연결 정보(<code>config.json</code>)가 들어 있어, 설치하면 사내 기본 배치 주소·관리 서버·업데이트 받을 곳이 자동으로 정해집니다. 압축을 풀고 브라우저 확장 관리 화면에서 <b>압축해제된 확장 프로그램을 로드</b>로 설치한 뒤, 폴더의 <code>updater\\install-updater.bat</code> 을 한 번 실행합니다. 업데이트 패키지도 같은 정보를 넣어서 내려줍니다." }),
+        h("details", {}, [h("summary", { text: "넣는 연결 정보" }), h("pre", { text: JSON.stringify(d.config, null, 2) })])])
+        : h("p", { class: "muted", text: "아직 배포 중인 버전이 없어 설치본이 없습니다. 아래에서 GitHub 최신 버전을 받거나 zip 을 올려 배포하면 생깁니다." })]),
     h("div", { class: "card" }, [
       h("p", { style: { marginTop: 0 }, text: d.current ? `지금 배포 중: v${d.current}` : "배포 중인 확장 패키지가 없습니다." }),
       h("p", { class: "muted", html: "직원 확장의 팝업에서 <b>업데이트 받을 곳</b>이 <b>관리 서버</b>(또는 자동)이면 이 서버에서 새 버전을 받습니다. 확장 업데이트는 관리 서버 업데이트와 따로 합니다. 확인 주소: " }, [h("code", { text: latest })]),
+      h("div", { class: "row" }, [h("button", { id: "ghBtn", class: "primary", disabled: !isAdmin, text: "GitHub 최신 버전 받기", onclick: () => gh(false) }),
+        h("span", { class: "muted", text: "서버가 GitHub 릴리스에서 최신 확장 패키지를 직접 받아 올립니다." })]),
+      h("div", { id: "ghManual", class: "card", hidden: true, style: { background: "#fff8e6" } }, [h("b", { text: "서버가 GitHub 에 연결하지 못하면 2단계로 하세요" }),
+        h("ol", {}, [h("li", {}, ["이 PC 의 브라우저로 ", h("a", { href: d.github.release, target: "_blank", rel: "noopener", text: "GitHub 최신 릴리스" }), " 에서 portal-customizer-vX.Y.Z.zip 을 받습니다."]),
+          h("li", { text: "아래 [zip 파일 선택해서 올리기] 로 그 파일을 올립니다. 연결 정보는 내려줄 때 자동으로 넣습니다." })])]),
       h("div", { class: "field" }, [h("label", { text: "확장 패키지 올리기 (GitHub 릴리스의 portal-customizer-vX.Y.Z.zip)" }), notes]),
       h("div", { class: "row" }, [h("label", { class: "row" }, [publish, "올리면서 바로 배포"]),
         h("button", { class: "primary", disabled: !isAdmin, text: "zip 파일 선택해서 올리기", onclick: async () => {
@@ -170,7 +189,7 @@ async function pageExtension() {
       d.releases.length ? h("table", {}, [h("thead", {}, h("tr", {}, ["버전", "올린 시각", "올린 사람", "크기", "변경 내용", ""].map((t) => h("th", { text: t })))),
         h("tbody", {}, d.releases.map((r) => h("tr", {}, [
           h("td", {}, [h("b", { text: "v" + r.version }), r.version === d.current ? h("span", { class: "badge", text: " 배포 중" }) : null]),
-          h("td", { text: fmt(r.uploadedAt) }), h("td", { text: r.by || "" }), h("td", { text: Math.round(r.size / 1024) + " KB" }),
+          h("td", { text: fmt(r.uploadedAt) + (r.source === "github" ? " (GitHub)" : "") }), h("td", { text: r.by || "" }), h("td", { text: Math.round(r.size / 1024) + " KB" }),
           h("td", { class: "muted", text: r.notes || "" }),
           h("td", {}, [h("a", { href: "/ext/portal-customizer-v" + r.version + ".zip", text: "받기" }), " ",
             r.version !== d.current ? h("button", { class: "small", disabled: !isAdmin, text: "이 버전 배포", onclick: () => guard(async () => { await api("POST", `/api/extension/${r.version}/publish`); toast(`v${r.version} 을(를) 배포합니다`); pageExtension(); }) }) : null, " ",

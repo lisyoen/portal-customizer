@@ -11,6 +11,7 @@ const A = require("./lib/auth");
 const R = require("./lib/resolve");
 const U = require("./lib/update");
 const Z = require("./lib/zipinfo");
+const ZW = require("./lib/zipwrite");
 
 const VERSION = require("./package.json").version;
 const DATA = path.resolve(process.env.PC_DATA || path.join(__dirname, "data"));
@@ -195,16 +196,89 @@ route("GET", "/ext/latest.json", (req, res) => {
   if (!r) return send(res, 404, { error: "배포 중인 확장 패키지가 없습니다" }, EXT_CORS);
   return send(res, 200, { version: r.version, zipUrl: `${baseUrl(req)}/ext/${extFile(r.version)}`, notes: r.notes || "", publishedAt: r.publishedAt || r.uploadedAt, source: "portal-customizer-server" }, EXT_CORS);
 });
+// The packages are handed out with this server's connection settings written into config.json, so an extension
+// installed from here (first install or update) already knows its organization address and update server.
+function extConfig(req) {
+  const base = baseUrl(req);
+  return { orgConfigUrl: base + "/portal-customizer.json", adminServer: base, updateSource: "server",
+    siteName: (S().settings || {}).siteName || "", issuedBy: "portal-customizer-server v" + VERSION, issuedAt: now() };
+}
+const injected = new Map(); // file|mtime|base -> buffer
+function extPackage(req, file) {
+  const fp = path.join(EXT_DIR, file);
+  const st = fs.statSync(fp);
+  const cfg = extConfig(req);
+  const key = [file, st.mtimeMs, cfg.orgConfigUrl, cfg.siteName].join("|");
+  if (!injected.has(key)) {
+    for (const k of injected.keys()) if (k.startsWith(file + "|")) injected.delete(k);
+    const { issuedAt, ...stable } = cfg; // eslint-disable-line no-unused-vars
+    injected.set(key, ZW.putEntry(fs.readFileSync(fp), "config.json", JSON.stringify(Object.assign(stable, { issuedAt: new Date(st.mtimeMs).toISOString() }), null, 2) + "\n"));
+  }
+  return injected.get(key);
+}
+function sendZip(res, buf, name) {
+  res.writeHead(200, { "Content-Type": "application/zip", "Content-Length": buf.length, "Content-Disposition": `attachment; filename="${name}"`, "Cache-Control": "no-cache", "Access-Control-Allow-Origin": "*" });
+  res.end(buf);
+}
+// installation package for new users: the version being distributed, with this server's settings
+route("GET", "/ext/install.zip", (req, res) => {
+  const e = extState(); const r = e.releases.find((x) => x.version === e.current);
+  if (!r || !fs.existsSync(path.join(EXT_DIR, extFile(r.version)))) return send(res, 404, { error: "배포 중인 확장 패키지가 없습니다" }, EXT_CORS);
+  return sendZip(res, extPackage(req, extFile(r.version)), `portal-customizer-v${r.version}-install.zip`);
+});
 route("GET", "/ext/:file", (req, res, p) => {
   const f = safeName(p.file);
   if (!/^portal-customizer-v\d+\.\d+\.\d+\.zip$/.test(f) || !fs.existsSync(path.join(EXT_DIR, f))) return send(res, 404, { error: "없는 파일입니다" }, EXT_CORS);
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  return serveFile(req, res, path.join(EXT_DIR, f), "no-cache");
+  return sendZip(res, extPackage(req, f), f);
 });
-route("GET", "/api/extension", (req) => { need(req); const e = extState(); return { current: e.current, releases: e.releases.slice().sort((a, b) => U.cmpVer(b.version, a.version)), latestUrl: "/ext/latest.json" }; });
+route("GET", "/api/extension", (req) => { need(req); const e = extState(); return { current: e.current, releases: e.releases.slice().sort((a, b) => U.cmpVer(b.version, a.version)), latestUrl: "/ext/latest.json", installUrl: "/ext/install.zip", config: extConfig(req), github: { release: GITHUB_RELEASES } }; });
 route("PUT", "/api/extension", async (req, res, p, q) => {
   const a = need(req, "admin");
   const body = await readBody(req, 100 * 1024 * 1024);
+  return saveExtPackage(a, body, { notes: str(q.get("notes"), 2000), publish: q.get("publish") !== "0" });
+});
+// Newest release from GitHub: the server downloads it itself (direct, then curl, which follows the proxy
+// environment). When this server cannot reach GitHub, the page tells the administrator to download it in the
+// browser and upload it (two steps).
+const GITHUB_REPO = "lisyoen/portal-customizer";
+// PC_GITHUB_LATEST: another latest.json address (tests, or a mirror the server can reach)
+const GITHUB_LATEST = process.env.PC_GITHUB_LATEST || `https://raw.githubusercontent.com/${GITHUB_REPO}/main/publish/latest.json`;
+const GITHUB_RELEASES = `https://github.com/${GITHUB_REPO}/releases/latest`;
+async function download(url, max) {
+  let directErr = "";
+  try {
+    const r = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(30000), headers: { "User-Agent": "portal-customizer-server" } });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const b = Buffer.from(await r.arrayBuffer());
+    if (b.length > max) throw new Error("too large");
+    return b;
+  } catch (e) { directErr = String(e.message || e); }
+  const out = await new Promise((resolve) => {
+    require("child_process").execFile("curl", ["-fsSL", "--max-time", "60", url], { encoding: "buffer", maxBuffer: max }, (err, stdout, stderr) =>
+      resolve(err ? { error: String(stderr || err.message).trim().slice(-200) } : { buf: stdout }));
+  });
+  if (out.buf && out.buf.length) return out.buf;
+  throw new Error(`직접 연결 실패(${directErr}), curl 실패(${out.error || "응답 없음"})`);
+}
+route("POST", "/api/extension/github", async (req, res, p, q) => {
+  const a = need(req, "admin");
+  let info, body;
+  try {
+    info = JSON.parse((await download(GITHUB_LATEST, 1024 * 1024)).toString("utf8"));
+    if (!/^\d+\.\d+\.\d+$/.test(String(info.version || "")) || !(process.env.PC_GITHUB_LATEST ? /^https?:\/\//.test(String(info.zipUrl || "")) : /^https:\/\/github\.com\//.test(String(info.zipUrl || "")))) throw new Error("최신 버전 정보가 올바르지 않습니다");
+    const have = extState().releases.find((x) => x.version === info.version);
+    if (have && fs.existsSync(path.join(EXT_DIR, extFile(info.version))) && q.get("force") !== "1") {
+      const e = extState();
+      if (q.get("publish") !== "0" && e.current !== info.version) { e.current = info.version; have.publishedAt = now(); store.audit(a.user, "확장 배포 버전 변경", "v" + info.version); store.save(); }
+      return { release: have, current: e.current, already: true };
+    }
+    body = await download(info.zipUrl, 100 * 1024 * 1024);
+  } catch (e) {
+    throw fail(502, "서버가 GitHub 에서 받지 못했습니다: " + String(e.message || e) + ". 아래 2단계 방법(브라우저로 받아서 올리기)을 쓰세요.");
+  }
+  return saveExtPackage(a, body, { notes: str(q.get("notes"), 2000) || `GitHub 릴리스 v${info.version}`, publish: q.get("publish") !== "0", source: "github" });
+});
+function saveExtPackage(a, body, opts) {
   let manifest;
   try { const m = Z.readEntry(body, "manifest.json"); if (!m) throw new Error("zip 맨 위에 manifest.json 이 없습니다. GitHub 릴리스의 portal-customizer-vX.Y.Z.zip 을 올리세요"); manifest = JSON.parse(m.toString("utf8")); }
   catch (e) { throw fail(400, "확장 패키지를 읽지 못했습니다: " + e.message); }
@@ -214,13 +288,12 @@ route("PUT", "/api/extension", async (req, res, p, q) => {
   fs.writeFileSync(path.join(EXT_DIR, extFile(v)), body);
   const e = extState();
   e.releases = e.releases.filter((x) => x.version !== v);
-  const rel = { version: v, size: body.length, notes: str(q.get("notes"), 2000), uploadedAt: now(), by: a.user };
+  const rel = { version: v, size: body.length, notes: opts.notes || "", uploadedAt: now(), by: a.user, source: opts.source || "upload" };
   e.releases.push(rel);
-  const publish = q.get("publish") !== "0";
-  if (publish) { e.current = v; rel.publishedAt = now(); }
-  store.audit(a.user, "확장 패키지 업로드", "v" + v + (publish ? " (배포)" : "")); store.save();
+  if (opts.publish) { e.current = v; rel.publishedAt = now(); }
+  store.audit(a.user, opts.source === "github" ? "확장 패키지 GitHub 받기" : "확장 패키지 업로드", "v" + v + (opts.publish ? " (배포)" : "")); store.save();
   return { release: rel, current: e.current };
-});
+}
 route("POST", "/api/extension/:version/publish", (req, res, p) => {
   const a = need(req, "admin"); const e = extState(); const r = e.releases.find((x) => x.version === p.version);
   if (!r || !fs.existsSync(path.join(EXT_DIR, extFile(r.version)))) throw fail(404, "패키지를 찾을 수 없습니다");

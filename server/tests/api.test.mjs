@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn, execFileSync } from "node:child_process";
+import http from "node:http";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -11,7 +12,17 @@ const data = mkdtempSync(path.join(tmpdir(), "kcsrv-"));
 const port = 20000 + Math.floor(Math.random() * 20000);
 const base = `http://127.0.0.1:${port}`;
 execFileSync(process.execPath, [path.join(here, "..", "cli.js"), "admin", "root", "Root"], { env: { ...process.env, PC_DATA: data, PC_PASSWORD: "secret-pass-1" } });
-const srv = spawn(process.execPath, [path.join(here, "..", "server.js")], { env: { ...process.env, PC_DATA: data, PORT: String(port), PC_NO_AUTO_UPDATE: "1" }, stdio: "ignore" });
+// stand-in for GitHub (publish/latest.json and the release zip); "down" answers 503 to test the fallback
+const ghPort = port + 1;
+const gh = { pkg: null, down: false };
+const ghSrv = http.createServer((req, res) => {
+  if (gh.down || !gh.pkg) { res.writeHead(503); return res.end(); }
+  if (req.url === "/latest.json") { res.writeHead(200, { "Content-Type": "application/json" }); return res.end(JSON.stringify({ version: gh.pkg.version, zipUrl: `http://127.0.0.1:${ghPort}/redirect` })); }
+  if (req.url === "/redirect") { res.writeHead(302, { Location: "/pkg.zip" }); return res.end(); }
+  if (req.url === "/pkg.zip") { res.writeHead(200, { "Content-Type": "application/zip" }); return res.end(gh.pkg.buf); }
+  res.writeHead(404); res.end();
+}).listen(ghPort, "127.0.0.1");
+const srv = spawn(process.execPath, [path.join(here, "..", "server.js")], { env: { ...process.env, PC_DATA: data, PORT: String(port), PC_NO_AUTO_UPDATE: "1", PC_GITHUB_LATEST: `http://127.0.0.1:${ghPort}/latest.json` }, stdio: "ignore" });
 let token = "";
 async function call(method, url, body, headers) {
   const r = await fetch(base + url, { method, headers: Object.assign({ Authorization: "Bearer " + token }, body !== undefined && !(body instanceof Uint8Array) ? { "Content-Type": "application/json" } : {}, headers || {}),
@@ -20,7 +31,7 @@ async function call(method, url, body, headers) {
   return { status: r.status, headers: r.headers, body: ct.includes("json") ? await r.json() : Buffer.from(await r.arrayBuffer()) };
 }
 test.before(async () => { for (let i = 0; i < 50; i += 1) { try { await fetch(base + "/api/health"); return; } catch (_e) { await new Promise((r) => setTimeout(r, 100)); } } });
-test.after(() => { srv.kill(); rmSync(data, { recursive: true, force: true }); });
+test.after(() => { srv.kill(); ghSrv.close(); rmSync(data, { recursive: true, force: true }); });
 
 test("health and login", async () => {
   assert.equal((await call("GET", "/api/health")).body.ok, true);
@@ -129,7 +140,20 @@ test("extension distribution: upload, latest.json, publish, delete", async () =>
   assert.equal(latest.body.version, ver); assert.match(latest.body.zipUrl, new RegExp(`/ext/portal-customizer-v${ver.replace(/\./g, "\\.")}\\.zip$`));
   assert.equal(latest.headers.get("access-control-allow-origin"), "*");
   const file = await call("GET", new URL(latest.body.zipUrl).pathname);
-  assert.equal(file.status, 200); assert.equal(file.body.length, readFileSync(zip).length);
+  assert.equal(file.status, 200);
+  // handed out with this server's connection settings in config.json (update package and installation package)
+  const { readEntry } = await import("../lib/zipinfo.js");
+  const cfg = JSON.parse(readEntry(file.body, "config.json").toString("utf8"));
+  const pub = ((await call("GET", "/api/settings")).body.settings.publicUrl || base).replace(/\/+$/, ""); // the address set on the settings page wins
+  assert.equal(cfg.orgConfigUrl, pub + "/portal-customizer.json"); assert.equal(cfg.adminServer, pub); assert.equal(cfg.updateSource, "server");
+  assert.equal(JSON.parse(readEntry(file.body, "manifest.json").toString("utf8")).version, ver);
+  assert.equal(readEntry(file.body, "updater/install-updater.bat").toString("latin1"), readEntry(readFileSync(zip), "updater/install-updater.bat").toString("latin1"), "other files untouched");
+  const inst = await fetch(base + "/ext/install.zip");
+  assert.equal(inst.status, 200); assert.match(inst.headers.get("content-disposition"), new RegExp(`portal-customizer-v${ver.replace(/\./g, "\\.")}-install\\.zip`));
+  assert.equal(JSON.parse(readEntry(Buffer.from(await inst.arrayBuffer()), "config.json").toString("utf8")).orgConfigUrl, pub + "/portal-customizer.json");
+  const { writeFileSync } = await import("node:fs");
+  writeFileSync(path.join(data, "handed-out.zip"), file.body);
+  execFileSync("unzip", ["-tq", path.join(data, "handed-out.zip")]); // a valid archive
   const trav = await call("GET", "/ext/..%2Fdb.json"); assert.ok(!String(trav.body).includes("tokens") && !(trav.headers.get("content-type") || "").includes("json"));
   assert.equal((await call("GET", "/ext/portal-customizer-v0.0.1.zip")).status, 404);
   assert.equal((await call("DELETE", "/api/extension/" + ver)).status, 400);
@@ -137,4 +161,27 @@ test("extension distribution: upload, latest.json, publish, delete", async () =>
   assert.equal((await call("GET", "/ext/latest.json")).status, 404);
   assert.equal((await call("POST", `/api/extension/${ver}/publish`)).status, 200);
   assert.equal((await call("GET", "/api/extension")).body.releases[0].notes, "테스트");
+  assert.equal((await call("GET", "/api/extension")).body.config.adminServer, pub);
+});
+
+test("extension distribution: newest release from GitHub, and the fallback message when it cannot be reached", async () => {
+  const { readFileSync } = await import("node:fs");
+  const zip = path.join(data, "pkg2.zip");
+  execFileSync("bash", [path.join(here, "..", "..", "scripts", "build-zip.sh"), zip]);
+  // a newer version than the uploaded one
+  const { putEntry } = await import("../lib/zipwrite.js");
+  const { readEntry } = await import("../lib/zipinfo.js");
+  const m = JSON.parse(readEntry(readFileSync(zip), "manifest.json").toString("utf8")); m.version = "9.8.7";
+  gh.pkg = { version: "9.8.7", buf: putEntry(readFileSync(zip), "manifest.json", JSON.stringify(m)) };
+  gh.down = true;
+  const bad = await call("POST", "/api/extension/github?publish=0");
+  assert.equal(bad.status, 502); assert.match(bad.body.error, /2단계/);
+  gh.down = false;
+  const ok = await call("POST", "/api/extension/github?publish=1");
+  assert.equal(ok.status, 200, JSON.stringify(ok.body)); assert.equal(ok.body.release.version, "9.8.7"); assert.equal(ok.body.current, "9.8.7"); assert.equal(ok.body.release.source, "github");
+  const again = await call("POST", "/api/extension/github?publish=1");
+  assert.equal(again.body.already, true);
+  const pkg = await call("GET", "/ext/portal-customizer-v9.8.7.zip");
+  assert.match(JSON.parse(readEntry(pkg.body, "config.json").toString("utf8")).adminServer, /^http/);
+  assert.equal((await call("GET", "/ext/latest.json")).body.version, "9.8.7");
 });

@@ -68,7 +68,7 @@ $("pageOff").addEventListener("click", async () => {
 });
 
 async function render() {
-  const s = await local.get(["enabled", "editMode", "orgUrl", "orgConfig", "adminToken", "adminServer"]);
+  const s = await local.get(["enabled", "editMode", "orgUrl", "orgConfig", "adminToken", "adminServer", "pkgConfig"]);
   const site = await getSite();
   renderPage();
   $("enabled").checked = s.enabled !== false;
@@ -82,7 +82,8 @@ async function render() {
   let managedUrl = "";
   try { managedUrl = (await chrome.storage.managed.get("orgConfigUrl")).orgConfigUrl || ""; } catch (_e) { /* none */ }
   const urlInput = $("orgUrl");
-  if (document.activeElement !== urlInput) urlInput.value = s.orgUrl || managedUrl || "";
+  const pkgUrl = (s.pkgConfig && s.pkgConfig.orgConfigUrl) || "";
+  if (document.activeElement !== urlInput) urlInput.value = s.orgUrl || managedUrl || pkgUrl;
   const org = s.orgConfig;
   const mine = site.customized && site.userLayout;
   const tb = await currentTab();
@@ -94,7 +95,7 @@ async function render() {
   if (pending) $("orgPendingText").textContent = t("orgNewer", [org.version]);
   const st = $("orgStatus");
   st.classList.toggle("error", !!(org && org.error));
-  if (!org) st.textContent = managedUrl && !s.orgUrl ? t("orgManaged") : t("orgNone");
+  if (!org) st.textContent = managedUrl && !s.orgUrl ? t("orgManaged") : pkgUrl && !s.orgUrl ? t("orgPackaged") : t("orgNone");
   else if (org.error) st.textContent = t("orgError", [org.error]);
   else st.textContent = t("orgLoaded", [org.version || "-", fmtTime(org.fetchedAt)]);
   renderInterval();
@@ -174,11 +175,12 @@ function serverOrigin(u) { try { const x = new URL(u); return /^https?:$/.test(x
 // The admin server is the server of the organization address (popup or policy), so it is not asked for;
 // "Change" opens the address field. Saved login (optional) fills the form and logs in again when the login expires.
 async function autoServer() {
-  const s = await local.get(["orgUrl"]);
+  const s = await local.get(["orgUrl", "pkgConfig"]);
   if (serverOrigin(s.orgUrl || "")) return serverOrigin(s.orgUrl);
   let managed = "";
   try { managed = (await chrome.storage.managed.get("orgConfigUrl")).orgConfigUrl || ""; } catch (_e) { /* none */ }
-  return serverOrigin(managed || "");
+  const pkg = s.pkgConfig || {};
+  return serverOrigin(managed || "") || serverOrigin(pkg.orgConfigUrl || "") || serverOrigin(pkg.adminServer || "");
 }
 let serverEdit = false;
 async function renderAdmin() {

@@ -41,7 +41,7 @@ The page's framework keeps rendering and updating its widgets. Portal Customizer
 
 Developer mode install (Chrome, Edge and other Chromium browsers).
 
-1. Download `portal-customizer-vX.Y.Z.zip` from [Releases](https://github.com/lisyoen/portal-customizer/releases/latest) and unzip it.
+1. Download `portal-customizer-vX.Y.Z.zip` from [Releases](https://github.com/lisyoen/portal-customizer/releases/latest) and unzip it. With an admin server, give new users its installation package instead (`http://server:port/ext/install.zip`): it carries the server's connection settings in `config.json`, so the organization address, admin server and update source are set on install.
 2. Open `chrome://extensions` (or `edge://extensions`), turn on **Developer mode**, click **Load unpacked** and choose the folder.
 3. Register the update helper once. Windows: double-click `updater\install-updater.bat`; macOS / Linux: `bash updater/install-updater.sh`.
 

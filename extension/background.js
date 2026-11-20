@@ -10,6 +10,30 @@ const t = (k, s) => chrome.i18n.getMessage(k, s) || k;
 
 function currentVersion() { return chrome.runtime.getManifest().version; }
 
+// ---------- settings that come with the package ----------
+// config.json in the extension folder holds the connection settings of this installation (organization layout
+// address, admin server, update source). It is empty in the GitHub release; the admin server writes its own
+// address into it when it hands out the package (installation package and updates). The values are kept in
+// storage (pkgConfig), so a later package without settings keeps them. Order: the user's own setting, then the
+// browser policy, then the package settings.
+function httpUrl(u) { try { const x = new URL(String(u || "")); return /^https?:$/.test(x.protocol) ? x.href : ""; } catch (_e) { return ""; } }
+let pkgLoaded = null;
+function loadPackagedConfig() {
+  if (!pkgLoaded) pkgLoaded = (async () => {
+    try {
+      const c = await (await fetch(chrome.runtime.getURL("config.json"), { cache: "no-store" })).json();
+      const clean = { orgConfigUrl: httpUrl(c.orgConfigUrl), adminServer: originOf(c.adminServer || ""),
+        updateSource: c.updateSource === "server" || c.updateSource === "github" ? c.updateSource : "", siteName: String(c.siteName || "").slice(0, 60) };
+      if (clean.orgConfigUrl || clean.adminServer) await chrome.storage.local.set({ pkgConfig: clean });
+    } catch (_e) { /* no or broken config.json: keep what was stored */ }
+  })();
+  return pkgLoaded;
+}
+async function packagedConfig() {
+  await loadPackagedConfig();
+  return (await chrome.storage.local.get("pkgConfig")).pkgConfig || {};
+}
+
 // ---------- extension self-update (same flow as the updater helper expects) ----------
 async function applyUpdateState(latest, extra) {
   const newer = PC.isNewer(latest, currentVersion());
@@ -33,8 +57,10 @@ const GITHUB_REPO = "lisyoen/portal-customizer";
 const GITHUB_LATEST = "https://raw.githubusercontent.com/" + GITHUB_REPO + "/main/publish/latest.json";
 function originOf(u) { try { const x = new URL(u); return /^https?:$/.test(x.protocol) ? x.origin : ""; } catch (_e) { return ""; } }
 async function updateSource() {
-  const { adminServer, updateSource: chosen } = await chrome.storage.local.get(["adminServer", "updateSource"]);
-  const server = originOf((await orgUrl()).url) || originOf(adminServer || "");
+  const { adminServer, updateSource: own } = await chrome.storage.local.get(["adminServer", "updateSource"]);
+  const pkg = await packagedConfig();
+  const server = originOf((await orgUrl()).url) || originOf(adminServer || "") || originOf(pkg.adminServer || "");
+  const chosen = own === "github" || own === "server" ? own : pkg.updateSource;
   const pick = chosen === "github" || chosen === "server" ? chosen : "";
   const source = pick || (server ? "server" : "github");
   if (source === "github") return { source, chosen: pick, server, latestUrl: GITHUB_LATEST };
@@ -99,6 +125,8 @@ async function orgUrl() {
     const m = await chrome.storage.managed.get("orgConfigUrl");
     if (m && m.orgConfigUrl) return { url: m.orgConfigUrl, managed: true };
   } catch (_e) { /* no policy */ }
+  const pkg = await packagedConfig();
+  if (pkg.orgConfigUrl) return { url: pkg.orgConfigUrl, managed: false, packaged: true };
   return { url: "", managed: false };
 }
 
@@ -238,8 +266,10 @@ function schedule() {
   scheduleOrg();
 }
 
+loadPackagedConfig();
 chrome.runtime.onInstalled.addListener(async (details) => {
   schedule();
+  await loadPackagedConfig();
   if (details.reason === "install") await chrome.storage.local.set({ enabled: true, editMode: false, sites: {} });
   await syncScripts();
   const { justUpdatedFrom } = await chrome.storage.local.get("justUpdatedFrom");

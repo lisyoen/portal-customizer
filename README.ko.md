@@ -41,7 +41,7 @@ Portal Customizer 는 화면을 만든 프론트엔드 프레임워크의 컴포
 
 개발자 모드로 설치합니다(Chrome, Edge 등 Chromium 브라우저).
 
-1. [Releases](https://github.com/lisyoen/portal-customizer/releases/latest) 에서 `portal-customizer-vX.Y.Z.zip` 을 받아 폴더에 풉니다.
+1. [Releases](https://github.com/lisyoen/portal-customizer/releases/latest) 에서 `portal-customizer-vX.Y.Z.zip` 을 받아 폴더에 풉니다. 관리 서버가 있으면 처음 설치하는 직원에게는 서버의 설치본(`http://서버:포트/ext/install.zip`)을 줍니다. 서버의 연결 정보가 `config.json` 에 들어 있어 설치하면 사내 기본 배치 주소·관리 서버·업데이트 받을 곳이 정해집니다.
 2. `chrome://extensions`(또는 `edge://extensions`)에서 **개발자 모드**를 켜고 **압축해제된 확장 프로그램을 로드합니다** 로 그 폴더를 고릅니다.
 3. 업데이트 도우미를 한 번 등록합니다. Windows: `updater\install-updater.bat` 더블클릭 / macOS·Linux: `bash updater/install-updater.sh`
 

@@ -111,7 +111,7 @@ let al = await popup.evaluate(() => chrome.alarms.get("pc-org-check"));
 check("org check interval comes from portal-customizer.json", iv.source === "org" && iv.minutes === 5 && al && al.periodInMinutes === 5, JSON.stringify([iv, al && al.periodInMinutes]));
 await popup.reload();
 await popup.waitForSelector("#orgMinutes");
-await popup.waitForTimeout(300);
+await popup.waitForFunction(() => !!document.getElementById("orgMinutes").placeholder, null, { timeout: 5000 }).catch(() => {});
 const ph = await popup.getAttribute("#orgMinutes", "placeholder");
 await popup.fill("#orgMinutes", "2");
 await popup.press("#orgMinutes", "Enter");
@@ -197,6 +197,42 @@ check("site name kept after reload", (await con.locator("#brand").innerText()).i
 await con.click("nav.side a[href='#/extension']");
 await con.waitForSelector("h1:has-text('확장 배포')");
 check("extension distribution page opens", (await con.locator("text=배포 중인 확장 패키지가 없습니다").count()) === 1 && (await con.locator("code").first().innerText()).endsWith("/ext/latest.json"));
+// installation package for new users: the server hands out the extension with its own settings in config.json
+{
+  const zip = path.join(data, "e2e-pkg.zip");
+  execFileSync("bash", ["scripts/build-zip.sh", zip]);
+  const tk = (await popup.evaluate(() => chrome.storage.local.get("adminToken"))).adminToken;
+  const up = await fetch(server + "/api/extension?publish=1", { method: "PUT", headers: { Authorization: "Bearer " + tk }, body: readFileSync(zip) });
+  await con.reload();
+  await con.waitForSelector("h1:has-text('확장 배포')");
+  check("distribution page offers the installation package", up.ok && (await con.locator("a.button:has-text('설치본 받기')").count()) === 1 && (await con.locator("code", { hasText: "/ext/install.zip" }).count()) === 1);
+  const inst = await fetch(server + "/ext/install.zip");
+  const dir = mkdtempSync(path.join(tmpdir(), "pc-inst-"));
+  writeFileSync(path.join(dir, "install.zip"), Buffer.from(await inst.arrayBuffer()));
+  execFileSync("unzip", ["-q", "install.zip", "-d", "ext"], { cwd: dir });
+  const ctx2 = await chromium.launchPersistentContext(mkdtempSync(path.join(tmpdir(), "pc-new-")), { headless: true, channel: "chromium",
+    args: [`--disable-extensions-except=${path.join(dir, "ext")}`, `--load-extension=${path.join(dir, "ext")}`] });
+  const sw2 = ctx2.serviceWorkers()[0] || await ctx2.waitForEvent("serviceworker");
+  const id2 = sw2.url().split("/")[2];
+  const p2 = await ctx2.newPage();
+  await p2.goto(`chrome-extension://${id2}/popup/popup.html`);
+  let pkg = null;
+  for (let i = 0; i < 30 && !pkg; i += 1) { await p2.waitForTimeout(200); pkg = (await p2.evaluate(() => chrome.storage.local.get("pkgConfig"))).pkgConfig; }
+  check("installed package knows the organization address and admin server", pkg && pkg.orgConfigUrl === server + "/portal-customizer.json" && pkg.adminServer === server && pkg.updateSource === "server", JSON.stringify(pkg));
+  await p2.reload();
+  await p2.waitForFunction((u) => document.getElementById("orgUrl").value === u, server + "/portal-customizer.json", { timeout: 5000 }).catch(() => {});
+  check("popup shows the packaged organization address", (await p2.inputValue("#orgUrl")) === server + "/portal-customizer.json", await p2.inputValue("#orgUrl"));
+  await p2.click("#adminToggle");
+  await p2.waitForSelector("#adminServerAuto:not([hidden])", { timeout: 5000 }).catch(() => {});
+  check("admin login uses the packaged server", !(await p2.locator("#adminServer").isVisible()) && (await p2.locator("#adminServerAuto").innerText()).includes("127.0.0.1:" + port));
+  const src2 = await p2.evaluate(() => chrome.runtime.sendMessage({ type: "updateSource" }));
+  const org2 = await p2.evaluate(() => chrome.runtime.sendMessage({ type: "fetchOrg" })).catch(() => null);
+  check("updates come from the packaged server", src2.source === "server" && src2.latestUrl === server + "/ext/latest.json", JSON.stringify(src2));
+  const oc = (await p2.evaluate(() => chrome.storage.local.get("orgConfig"))).orgConfig;
+  check("organization layout is fetched from the packaged address", oc && oc.url === server + "/portal-customizer.json", JSON.stringify(oc && { url: oc.url, err: oc.error }) + JSON.stringify(org2));
+  await ctx2.close();
+  rmSync(dir, { recursive: true, force: true });
+}
 await con.click("nav.side a[href='#/manual']");
 await con.waitForSelector(".doc h3");
 check("manual page renders the repository manual", (await con.locator(".doc h3").count()) >= 10 && (await con.locator(".doc table, .doc pre").count()) >= 1);

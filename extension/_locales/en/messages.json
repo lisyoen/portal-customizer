@@ -801,5 +801,8 @@
   },
   "adminRemember": {
     "message": "Save login"
+  },
+  "orgPackaged": {
+    "message": "Using the organization address that came with the installation package."
   }
 }
