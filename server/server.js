@@ -169,6 +169,28 @@ function seeClient(req, id) {
   const ua = req.headers["user-agent"];
   c.browser = browserOf(ua) || c.browser || ""; c.os = osOf(ua) || c.os || "";
   c.ip = clientIp(req) || c.ip || "";
+  inheritName(c, all);
+}
+// A PC that was named before and shows up again with a new installation id (reinstalled extension, another
+// browser profile) gets the name back from the installation last seen at the same network address. Checked once
+// per address change for installations without a name; can be turned off in the settings (addresses that change,
+// shared addresses).
+function inheritName(c, all) {
+  if (c.name || !c.ip || c.ipChecked === c.ip || (S().settings || {}).inheritByIp === false) return;
+  c.ipChecked = c.ip;
+  let src = null;
+  for (const k in all) {
+    const o = all[k];
+    if (o === c || !o.name || o.ip !== c.ip) continue;
+    if (!src || String(o.lastSeen || "") > String(src.lastSeen || "")) src = o;
+  }
+  if (!src) return;
+  c.name = src.name; c.namedBy = "ip"; c.nameFrom = src.id;
+  for (const f of ["owner", "note"]) if (src[f]) c[f] = src[f];
+  // the same browser at the same address: the old installation was replaced, so the watch moves to the new one
+  if (src.browser === c.browser) { if (src.watch) { c.watch = true; src.watch = false; } src.replacedBy = c.id; }
+  c.updatedAt = now();
+  store.audit("(자동)", "PC 이름 이어받기", c.name, `${c.ip} ${src.id.slice(0, 8)} → ${c.id.slice(0, 8)}`);
 }
 function inactiveDays() { return Math.max(1, Number((S().settings || {}).inactiveDays) || DEFAULT_INACTIVE_DAYS); }
 
@@ -543,14 +565,14 @@ route("GET", "/api/clients", (req) => {
   const list = Object.values(clientsMap()).map((c) => publicClient(c, limit));
   // watched and inactive first, then by name, then most recently seen
   list.sort((a, b) => (b.inactive && b.watch) - (a.inactive && a.watch) || (!!b.name) - (!!a.name) || String(a.name || "").localeCompare(String(b.name || "")) || String(b.lastSeen).localeCompare(String(a.lastSeen)));
-  return { clients: list, inactiveDays: limit, total: list.length, inactive: list.filter((c) => c.inactive).length, watchedInactive: list.filter((c) => c.inactive && c.watch).length };
+  return { clients: list, inactiveDays: limit, inheritByIp: (S().settings || {}).inheritByIp !== false, total: list.length, inactive: list.filter((c) => c.inactive).length, watchedInactive: list.filter((c) => c.inactive && c.watch).length };
 });
 route("PUT", "/api/clients/:id", async (req, res, p) => {
   const a = need(req); const b = await json(req); const id = str(p.id, 40);
   if (!/^[\w-]{8,40}$/.test(id)) throw fail(400, "설치 ID 가 올바르지 않습니다");
   const all = clientsMap();
   const c = all[id] || (all[id] = { id, firstSeen: now() });
-  if ("name" in b) { c.name = str(b.name, 60).trim(); c.namedBy = "admin"; }
+  if ("name" in b) { c.name = str(b.name, 60).trim(); c.namedBy = "admin"; delete c.nameFrom; }
   if ("owner" in b) c.owner = str(b.owner, 60).trim();
   if ("note" in b) c.note = str(b.note, 300).trim();
   if ("watch" in b) c.watch = !!b.watch;
@@ -567,7 +589,7 @@ route("PUT", "/api/client", async (req, res) => {
   const c = clientsMap()[id];
   if (!c) throw fail(503, "설치 목록이 가득 찼습니다");
   const name = str(b.name, 60).trim();
-  if (c.name !== name) { c.name = name; c.namedBy = "user"; c.updatedAt = now(); store.audit("(PC 사용자)", "PC 이름 지정", name || "(지움)", id.slice(0, 8)); }
+  if (c.name !== name) { c.name = name; c.namedBy = "user"; delete c.nameFrom; c.updatedAt = now(); store.audit("(PC 사용자)", "PC 이름 지정", name || "(지움)", id.slice(0, 8)); }
   store.save();
   return send(res, 200, { client: { name: c.name } }, { "Access-Control-Allow-Origin": "*" });
 });
@@ -597,13 +619,14 @@ route("DELETE", "/api/admins/:id", (req, res, p) => { const a = need(req, "admin
 route("GET", "/api/audit", (req, res, p, q) => { need(req, "admin"); const n = Math.min(1000, Number(q.get("limit")) || 200); return { audit: S().audit.slice(0, n) }; });
 
 // settings
-route("GET", "/api/settings", (req) => { need(req); return { settings: Object.assign({ autoUpdate: true, checkMinutes: 1, refreshMinutes: DEFAULT_CLIENT_MINUTES, siteName: "Portal Customizer", inactiveDays: DEFAULT_INACTIVE_DAYS, welcomeNotice: "" }, S().settings), version: VERSION, port: PORT }; });
+route("GET", "/api/settings", (req) => { need(req); return { settings: Object.assign({ autoUpdate: true, checkMinutes: 1, refreshMinutes: DEFAULT_CLIENT_MINUTES, siteName: "Portal Customizer", inactiveDays: DEFAULT_INACTIVE_DAYS, welcomeNotice: "", inheritByIp: true }, S().settings), version: VERSION, port: PORT }; });
 route("PUT", "/api/settings", async (req) => { const a = need(req, "admin"); const b = await json(req); const s = S().settings;
   if ("publicUrl" in b) { const v = str(b.publicUrl, 300).trim().replace(/\/+$/, ""); if (v && !/^https?:\/\/[^/]+$/.test(v)) throw fail(400, "서버 주소는 http(s)://주소:포트 형식이어야 합니다"); s.publicUrl = v; }
   if ("autoUpdate" in b) s.autoUpdate = !!b.autoUpdate;
   if ("checkMinutes" in b) { s.checkMinutes = Math.min(10080, Math.max(1, Math.round(Number(b.checkMinutes)) || 1)); delete s.checkHours; }
   if ("refreshMinutes" in b) s.refreshMinutes = Math.min(1440, Math.max(1, Math.round(Number(b.refreshMinutes)) || DEFAULT_CLIENT_MINUTES));
   if ("siteName" in b) s.siteName = str(b.siteName, 60);
+  if ("inheritByIp" in b) s.inheritByIp = !!b.inheritByIp;
   if ("inactiveDays" in b) s.inactiveDays = Math.min(365, Math.max(1, Math.round(Number(b.inactiveDays)) || DEFAULT_INACTIVE_DAYS));
   if ("welcomeNotice" in b) s.welcomeNotice = str(b.welcomeNotice, 2000).trim();
   // pages the layout applies to (address prefixes, * = anything) and the optional site rule (CSS selectors)

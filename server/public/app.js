@@ -570,10 +570,13 @@ async function pageClients(filter) {
       h("div", { class: "card grow" }, [h("div", { class: "muted", text: "관리 대상 중 접속 없음" }), h("div", { style: { fontSize: "28px", fontWeight: 700, color: d.watchedInactive ? "#c62828" : "" }, text: String(d.watchedInactive) })])]),
     h("div", { class: "card" }, [
       h("div", { class: "row" }, [tab("all", "전체"), tab("inactive", "접속 없음"), tab("watch", "관리 대상"), tab("named", "이름 있음"), q,
-        h("span", { class: "grow" }), "접속 없음 기준", days, "일", h("button", { class: "small", disabled: !isAdmin, text: "저장", onclick: () => guard(async () => { await api("PUT", "/api/settings", { inactiveDays: Number(days.value) }); pageClients(); }) })]),
+        h("span", { class: "grow" }),
+        h("label", { class: "row", title: "이름 없는 새 설치가 전에 이름을 붙인 PC 와 같은 접속 주소에서 들어오면 그 이름(담당자·메모 포함)을 이어받습니다. 주소가 자주 바뀌는 망에서는 끄세요." }, [
+          h("input", { type: "checkbox", checked: d.inheritByIp, disabled: !isAdmin, onchange: (e) => guard(async () => { await api("PUT", "/api/settings", { inheritByIp: e.target.checked }); toast(e.target.checked ? "같은 주소 이름 이어받기를 켰습니다" : "껐습니다"); }) }), "같은 주소면 이름 이어받기"]),
+        "접속 없음 기준", days, "일", h("button", { class: "small", disabled: !isAdmin, text: "저장", onclick: () => guard(async () => { await api("PUT", "/api/settings", { inactiveDays: Number(days.value) }); pageClients(); }) })]),
       rows.length ? h("table", {}, [h("thead", {}, h("tr", {}, ["이름", "담당자", "마지막 접속", "브라우저", "주소", "버전", "설치 ID", ""].map((t) => h("th", { text: t })))),
         h("tbody", {}, rows.map((c) => h("tr", { style: c.inactive ? { background: c.watch ? "#fdecea" : "#fff8e6" } : {} }, [
-          h("td", {}, [c.watch ? h("span", { class: "badge", text: "관리 " }) : null, h("b", { text: c.name || "" }), c.name && c.namedBy === "user" ? h("span", { class: "muted", text: " (사용자 지정)" }) : null, c.note ? h("div", { class: "muted", text: c.note }) : null]),
+          h("td", {}, [c.watch ? h("span", { class: "badge", text: "관리 " }) : null, h("b", { text: c.name || "" }), c.name && c.namedBy === "user" ? h("span", { class: "muted", text: " (사용자 지정)" }) : c.name && c.namedBy === "ip" ? h("span", { class: "muted", title: "같은 주소에서 전에 쓰던 이름을 이어받았습니다", text: " (같은 주소에서 이어받음)" }) : null, c.replacedBy ? h("div", { class: "muted", text: "새 설치로 바뀜: " + c.replacedBy.slice(0, 8) }) : null, c.note ? h("div", { class: "muted", text: c.note }) : null]),
           h("td", { text: c.owner || "" }),
           h("td", { title: c.lastSeen ? fmt(c.lastSeen) : "", text: idle(c) + (c.inactive ? " (접속 없음)" : "") }),
           h("td", { text: [c.browser, c.os].filter(Boolean).join(" · ") }), h("td", { text: c.ip || "" }), h("td", { text: c.version || "" }),

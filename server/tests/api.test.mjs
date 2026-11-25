@@ -147,15 +147,32 @@ test("installations: last check-in per extension install, names given by adminis
   const put = await call("PUT", "/api/clients/" + id, { name: "7층 회의실 A", owner: "홍길동", note: "TV 옆", watch: true });
   assert.equal(put.status, 200); assert.equal(put.body.client.name, "7층 회의실 A"); assert.equal(put.body.client.watch, true);
   assert.equal((await call("PUT", "/api/settings", { welcomeNotice: "문의: 내선 1234", inactiveDays: 5 })).status, 200);
-  const pub2 = await call("GET", "/portal-customizer.json", undefined, { "X-PC-Client": id });
+  const pub2 = await call("GET", "/portal-customizer.json", undefined, { "X-PC-Client": id, "User-Agent": ua });
   assert.equal(pub2.body.client.name, "7층 회의실 A"); assert.equal(pub2.body.notice, "문의: 내선 1234");
+  // another installation at the same address (test runs on one host): inheritance off for this check
+  assert.equal((await call("PUT", "/api/settings", { inheritByIp: false })).status, 200);
   const other = await call("GET", "/portal-customizer.json", undefined, { "X-PC-Client": "99999999-0000" });
   assert.equal(other.body.client, undefined);
   list = (await call("GET", "/api/clients")).body;
   assert.equal(list.inactiveDays, 5); assert.equal(list.clients.find((x) => x.id === id).owner, "홍길동");
   assert.equal((await call("DELETE", "/api/clients/99999999-0000")).status, 200);
   assert.ok(!(await call("GET", "/api/clients")).body.clients.some((x) => x.id === "99999999-0000"));
+  assert.equal((await call("PUT", "/api/settings", { inheritByIp: true })).status, 200);
   assert.equal((await call("PUT", "/api/settings", { welcomeNotice: "" })).status, 200);
+  // a new installation from the same address gets the name back (reinstall: same browser, the watch moves over)
+  const re = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+  const pubRe = await call("GET", "/portal-customizer.json", undefined, { "X-PC-Client": re, "User-Agent": ua });
+  assert.equal(pubRe.body.client && pubRe.body.client.name, "7층 회의실 A", "the name comes back right away");
+  list = (await call("GET", "/api/clients")).body;
+  const nc = list.clients.find((x) => x.id === re), oc = list.clients.find((x) => x.id === id);
+  assert.equal(nc.namedBy, "ip"); assert.equal(nc.owner, "홍길동"); assert.equal(nc.watch, true); assert.equal(oc.watch, false); assert.equal(oc.replacedBy, re);
+  // turned off: no inheritance
+  assert.equal((await call("PUT", "/api/settings", { inheritByIp: false })).status, 200);
+  const off = "ffffffff-1111-2222-3333-444444444444";
+  assert.equal((await call("GET", "/portal-customizer.json", undefined, { "X-PC-Client": off })).body.client, undefined);
+  assert.equal((await call("GET", "/api/clients")).body.inheritByIp, false);
+  assert.equal((await call("PUT", "/api/settings", { inheritByIp: true })).status, 200);
+  for (const x of [re, off]) await call("DELETE", "/api/clients/" + x);
 });
 
 test("extension distribution: upload, latest.json, publish, delete", async () => {
