@@ -12,6 +12,7 @@ const R = require("./lib/resolve");
 const U = require("./lib/update");
 const Z = require("./lib/zipinfo");
 const ZW = require("./lib/zipwrite");
+const { PluginHost } = require("./lib/plugins");
 
 const VERSION = require("./package.json").version;
 const DATA = path.resolve(process.env.PC_DATA || path.join(__dirname, "data"));
@@ -396,6 +397,8 @@ route("GET", "/portal-customizer.json", (req, res, p, q) => {
   const extra = {};
   if (c && c.name) extra.client = { name: c.name };
   if (notice) extra.notice = notice;
+  const pl = plugins.published(baseUrl(req));
+  if (pl.length) extra.plugins = pl;
   return send(res, 200, Object.keys(extra).length ? Object.assign({}, out, extra) : out, { "Access-Control-Allow-Origin": "*" });
 });
 
@@ -654,12 +657,27 @@ route("PUT", "/api/update/package", async (req) => { const a = need(req, "admin"
   store.audit(a.user, "업데이트 패키지 업로드", String(body.length)); store.flush();
   const r = await U.installPackage(DATA, file, VERSION); if (!r.ok) throw fail(400, r.error); return r; });
 
+// ---------- plugins (lib/plugins.js, docs/plugins.md) ----------
+const plugins = new PluginHost({ dataDir: DATA, coreVersion: VERSION, store: () => store, need, fail, json, send, readBody, baseUrl, log: (m) => console.error(m) });
+route("GET", "/api/plugins", (req) => { need(req); return { plugins: plugins.list(), dev: !!process.env.PC_PLUGIN_DIRS }; });
+route("PUT", "/api/plugins", async (req) => {
+  const a = need(req, "admin"); const body = await readBody(req, 200 * 1024 * 1024);
+  let st; try { st = plugins.install(body); } catch (e) { throw fail(e.status || 400, e.message); }
+  if (!st) throw fail(400, "plugin.json 을 읽지 못했습니다");
+  store.audit(a.user, "플러그인 설치", `${st.id} v${st.version}`, st.error || ""); store.save();
+  return { plugin: plugins.list().find((x) => x.id === st.id) };
+});
+route("POST", "/api/plugins/:id/enabled", async (req, res, p) => { const a = need(req, "admin"); const b = await json(req); plugins.setEnabled(p.id, b.enabled !== false);
+  store.audit(a.user, b.enabled !== false ? "플러그인 켜기" : "플러그인 끄기", p.id); store.save(); return { plugins: plugins.list() }; });
+route("POST", "/api/plugins/reload", (req) => { const a = need(req, "admin"); plugins.loadAll(); store.audit(a.user, "플러그인 다시 불러오기"); store.save(); return { plugins: plugins.list() }; });
+route("DELETE", "/api/plugins/:id", (req, res, p) => { const a = need(req, "admin"); plugins.remove(p.id); store.audit(a.user, "플러그인 삭제", p.id); store.save(); return { plugins: plugins.list() }; });
+
 // backup / restore: tar.gz of db.json + media
 route("GET", "/api/backup", (req, res) => {
   const a = need(req, "admin"); store.flush(); store.audit(a.user, "백업 내려받기"); store.saveSoon();
   res.writeHead(200, { "Content-Type": "application/gzip", "Content-Disposition": `attachment; filename="portal-customizer-server-backup-${day()}.tar.gz"` });
   const { spawn } = require("child_process");
-  const p = spawn("tar", ["czf", "-", "-C", DATA, "db.json", "media"]);
+  const p = spawn("tar", ["czf", "-", "-C", DATA, "db.json", "media", "plugins", "plugin-data"]);
   p.stdout.pipe(res);
 });
 route("PUT", "/api/backup", async (req) => {
@@ -671,8 +689,10 @@ route("PUT", "/api/backup", async (req) => {
   store.flush(); fs.copyFileSync(path.join(DATA, "db.json"), path.join(DATA, `db-before-restore-${Date.now()}.json`));
   fs.copyFileSync(path.join(tmp, "db.json"), path.join(DATA, "db.json"));
   if (fs.existsSync(path.join(tmp, "media"))) for (const f of fs.readdirSync(path.join(tmp, "media"))) fs.copyFileSync(path.join(tmp, "media", f), path.join(DATA, "media", f));
+  for (const d of ["plugins", "plugin-data"]) if (fs.existsSync(path.join(tmp, d))) fs.cpSync(path.join(tmp, d), path.join(DATA, d), { recursive: true });
   fs.rmSync(tmp, { recursive: true, force: true });
   store = new Store(DATA); store.audit(a.user, "백업 복원"); store.save();
+  plugins.loadAll();
   return { ok: true };
 });
 
@@ -697,7 +717,10 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     if (p.startsWith("/media/")) return serveFile(req, res, path.join(DATA, "media", safeName(p.slice(7))), "public, max-age=86400");
+    if (p.startsWith("/api/p/") && await plugins.dispatch(req, res, p, u.searchParams)) return;
     if (p.startsWith("/api/")) return send(res, 404, { error: "없는 API 입니다" });
+    const pf = plugins.staticFile(p);
+    if (pf !== null) return pf ? serveFile(req, res, pf) : send(res, 404, "not found");
     const f = path.join(PUBLIC, path.normalize(p === "/" ? "/index.html" : p).replace(/^(\.\.[/\\])+/, ""));
     if (f.startsWith(PUBLIC) && fs.existsSync(f) && fs.statSync(f).isFile()) return serveFile(req, res, f);
     return serveFile(req, res, path.join(PUBLIC, "index.html"));
@@ -706,6 +729,8 @@ const server = http.createServer(async (req, res) => {
     if (!e.status) console.error(e);
   }
 });
+
+plugins.loadAll();
 
 if (require.main === module) {
   server.listen(PORT, HOST, () => console.log(`portal-customizer-server v${VERSION} on http://${HOST}:${PORT} (data: ${DATA})`));
@@ -723,4 +748,4 @@ if (require.main === module) {
   setTimeout(tick, 15000).unref();
   for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => { try { store.flush(); } catch (_e) { /* ignore */ } process.exit(0); });
 }
-module.exports = { server, get store() { return store; }, VERSION };
+module.exports = { server, get store() { return store; }, VERSION, plugins };

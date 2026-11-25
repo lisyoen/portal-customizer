@@ -37,6 +37,10 @@ The page's framework keeps rendering and updating its widgets. Portal Customizer
 | Export / import | Save a layout as JSON and load it again. |
 | One-click updates | When an administrator uploads a new version on the admin server's **확장 배포** page, the icon shows **NEW**; one click installs it. |
 
+## Plugins
+
+The admin server loads plugins: packages that add routes, admin pages, panels and *site connectors* (requests the extension runs inside the portal tab with the user's session, declared on the server — no remote code in the extension). Install them from the console's **Plugins** menu. See [docs/plugins.md](docs/plugins.md).
+
 ## Installations and guide page
 
 - The admin server lists every installation (anonymous install id) with its last check-in, version, browser and network address. Users name their PC from the popup; administrators name installations, set a person in charge and mark ones to watch (meeting room PCs); watched installations that stop checking in are flagged.

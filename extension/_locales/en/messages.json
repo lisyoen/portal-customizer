@@ -904,5 +904,19 @@
   },
   "pcNoServer": {
     "message": "No organization address (admin server) to send the name to."
+  },
+  "emptyPlugin": {
+    "message": "Plugin panel not found: $ARG$",
+    "placeholders": {
+      "arg": {
+        "content": "$1"
+      }
+    }
+  },
+  "pluginPanels": {
+    "message": "Admin server plugins"
+  },
+  "type_plugin": {
+    "message": "Plugin panel"
   }
 }

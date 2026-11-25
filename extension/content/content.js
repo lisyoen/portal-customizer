@@ -690,6 +690,14 @@
       let timer = 0;
       ta.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(() => storageSet({ ["memo:" + p.id]: ta.value }), 500); });
       body.append(ta);
+    } else if (p.type === "plugin") {
+      const def = PCBridge.panelDef(S.orgConfig, p.plugin, p.panel);
+      if (def) {
+        iframeEl = el("iframe", { class: "pc-iframe pc-plugin-frame", src: PCBridge.panelUrl(def, p), title: p.title || def.title });
+        iframeEl.dataset.pcPlugin = p.plugin;
+        iframeEl.dataset.pcOrigin = new URL(def.url).origin;
+        body.append(iframeEl);
+      } else body.append(el("div", { class: "pc-empty", text: t("emptyPlugin", [p.plugin + "/" + p.panel]) }));
     } else if (p.type === "iframe") {
       if (p.url) {
         iframeEl = el("iframe", { class: "pc-iframe", src: p.url, loading: "lazy", title: p.title || "", scrolling: p.scroll === false ? "no" : null });
@@ -1044,6 +1052,8 @@
     menu = el("div", { class: "pc-menu", style: { left: r.left + "px", top: r.bottom + 6 + "px" } }, [
       el("div", { class: "pc-menu-label", text: t("customPanels") }),
       ...["feed", "carousel", "image", "video", "html", "links", "memo", "iframe"].map((type) => el("button", { text: t("type_" + type), onclick: () => add(L.newPanel(type, type === "image" ? "" : t("type_" + type))) })),
+      ...(() => { const defs = PCBridge.panelDefs(S.orgConfig, location.href); return defs.length ? [el("div", { class: "pc-menu-label", text: t("pluginPanels") }),
+        ...defs.map((d) => el("button", { text: d.title, title: d.pluginName, onclick: () => add(Object.assign(L.newPanel("plugin", d.title), { plugin: d.plugin, panel: d.name, height: d.height })) }))] : []; })(),
       el("div", { class: "pc-menu-label", text: t("originalWidgets") }),
       ...[...catalog.values()].map((info) => el("button", {
         text: info.title + (used.has(info.key) ? " ✓" : ""), disabled: used.has(info.key),

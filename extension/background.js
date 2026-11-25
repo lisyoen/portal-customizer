@@ -130,6 +130,24 @@ async function orgUrl() {
   return { url: "", managed: false };
 }
 
+// Plugins of the admin server (portal-customizer.json "plugins"): their panels (pages on the admin server) and
+// connectors (declarative requests the content script runs inside the portal tab, content/bridge.js).
+function pluginList(list) {
+  if (!Array.isArray(list)) return [];
+  const http = (u) => { try { const x = new URL(String(u)); return /^https?:$/.test(x.protocol) ? x.href : ""; } catch (_e) { return ""; } };
+  const out = [];
+  for (const p of list.slice(0, 30)) {
+    if (!p || !/^[a-z0-9][a-z0-9-]{1,39}$/.test(String(p.id || "")) || !http(p.base)) continue;
+    const panels = (Array.isArray(p.panels) ? p.panels : []).filter((x) => x && /^[\w-]{1,40}$/.test(String(x.name || "")) && http(x.url)).slice(0, 30)
+      .map((x) => ({ name: x.name, title: String(x.title || x.name).slice(0, 60), url: http(x.url), height: Math.min(4000, Math.max(80, Number(x.height) || 360)),
+        sites: Array.isArray(x.sites) ? x.sites.map(String).slice(0, 20) : [] }));
+    const connectors = (Array.isArray(p.connectors) ? p.connectors : []).filter((c) => c && /^[\w.-]{1,60}$/.test(String(c.id || "")) && Array.isArray(c.sites)).slice(0, 200);
+    if (JSON.stringify(connectors).length > 400000) continue;
+    out.push({ id: p.id, name: String(p.name || p.id).slice(0, 80), version: String(p.version || "").slice(0, 20), base: http(p.base), panels, connectors });
+  }
+  return out;
+}
+
 async function fetchOrg() {
   const { url, managed } = await orgUrl();
   const { orgConfig: prev } = await chrome.storage.local.get("orgConfig");
@@ -148,11 +166,12 @@ async function fetchOrg() {
     const version = r.layout.version || PCLayout.hash(text);
     const raw = JSON.parse(text);
     const orgConfig = { url, managed, version, name: r.layout.name || "", layout: r.layout, match: siteList(raw.match), site: siteRuleOf(raw.site) || r.layout.site || null, fetchedAt: Date.now(), error: null,
-      notice: String(raw.notice || "").slice(0, 2000), clientName: String((raw.client && raw.client.name) || "").slice(0, 60) };
+      notice: String(raw.notice || "").slice(0, 2000), clientName: String((raw.client && raw.client.name) || "").slice(0, 60), plugins: pluginList(raw.plugins) };
     // Avoid storage churn (and page re-renders) when nothing changed.
     if (!prev || prev.version !== version || prev.url !== url || prev.error || (prev.layout && prev.layout.refreshMinutes) !== r.layout.refreshMinutes
       || JSON.stringify(prev.match) !== JSON.stringify(orgConfig.match) || JSON.stringify(prev.site) !== JSON.stringify(orgConfig.site)
-      || (prev.notice || "") !== orgConfig.notice || (prev.clientName || "") !== orgConfig.clientName) await chrome.storage.local.set({ orgConfig });
+      || (prev.notice || "") !== orgConfig.notice || (prev.clientName || "") !== orgConfig.clientName
+      || JSON.stringify(prev.plugins || []) !== JSON.stringify(orgConfig.plugins)) await chrome.storage.local.set({ orgConfig });
     else await chrome.storage.local.set({ orgCheckedAt: Date.now() });
     await scheduleOrg();
     return { ok: true, version };
@@ -175,7 +194,7 @@ function siteRuleOf(v) { return PCLayout.widgetRule(v); }
 // ---------- where the content scripts run ----------
 // Only on pages the user turned on (popup "Customize this page") and pages named by the organization layout,
 // and only where the user granted access to that site.
-const CONTENT_JS = ["lib/layout.js", "lib/detect.js", "content/media.js", "content/content.js"];
+const CONTENT_JS = ["lib/layout.js", "lib/detect.js", "content/media.js", "content/bridge.js", "content/content.js"];
 const CONTENT_CSS = ["content/content.css"];
 function originPattern(href) {
   const m = /^(https?):\/\/([^/?#]+)/i.exec(String(href || ""));

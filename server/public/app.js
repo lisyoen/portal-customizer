@@ -81,7 +81,7 @@ function renderLogin(msg) {
     h("button", { class: "primary", style: { width: "100%" }, text: "로그인", onclick: go })]));
   user.focus();
 }
-const PAGES = [["layouts", "배치"], ["contents", "콘텐츠(CMS)"], ["stats", "통계"], ["clients", "설치 PC"], ["admins", "관리자·감사 로그"], ["extension", "확장 배포"], ["settings", "설정·업데이트"], ["manual", "매뉴얼"], ["license", "라이선스"]];
+const PAGES = [["layouts", "배치"], ["contents", "콘텐츠(CMS)"], ["stats", "통계"], ["clients", "설치 PC"], ["admins", "관리자·감사 로그"], ["extension", "확장 배포"], ["plugins", "플러그인"], ["settings", "설정·업데이트"], ["manual", "매뉴얼"], ["license", "라이선스"]];
 function shell(active, content) {
   $app.replaceChildren(h("div", { class: "layout" }, [
     h("nav", { class: "side" }, [h("a", { class: "brand", href: "#/layouts", title: "배치 목록으로", id: "brand", onclick: () => { if (location.hash === "#/layouts") route(); } }, [h("img", { src: "favicon.svg", alt: "" }), siteName]), versionBox(),
@@ -144,9 +144,42 @@ function route() {
   if (page === "admins" && me.role === "admin") return pageAdmins();
   if (page === "settings") return pageSettings();
   if (page === "extension") return pageExtension();
+  if (page === "plugins") return id ? pagePluginAdmin(id, location.hash.split("/")[3]) : pagePlugins();
   if (page === "manual") return pageDoc("manual", "매뉴얼");
   if (page === "license") return pageDoc("license", "라이선스");
   return pageLayouts();
+}
+
+// ---------- plugins ----------
+async function pagePlugins() {
+  const d = await api("GET", "/api/plugins");
+  const isAdmin = me.role === "admin";
+  shell("plugins", [h("h1", { text: "플러그인" }),
+    h("div", { class: "card" }, [
+      h("p", { style: { marginTop: 0 }, class: "muted", html: "플러그인은 관리 서버에 기능(게시판, 사내 시스템 연동 등)을 더하는 꾸러미입니다. 플러그인이 더한 <b>패널</b>은 확장의 편집 모드 '패널 추가' 에, <b>관리 화면</b>은 아래 목록에 나타납니다. 자세한 내용은 매뉴얼의 플러그인 장을 보세요." }),
+      h("div", { class: "row" }, [
+        h("button", { class: "primary", disabled: !isAdmin, text: "플러그인 zip 올리기", onclick: async () => {
+          const f = await pickFile(".zip,application/zip"); if (!f) return;
+          await guard(async () => { const r = await api("PUT", "/api/plugins", f, "application/zip"); toast(r.plugin.error ? `설치했지만 오류: ${r.plugin.error}` : `${r.plugin.name} v${r.plugin.version} 을(를) 설치했습니다`); pagePlugins(); });
+        } }),
+        h("button", { disabled: !isAdmin, text: "다시 불러오기", onclick: () => guard(async () => { await api("POST", "/api/plugins/reload"); toast("다시 불러왔습니다"); pagePlugins(); }) })])]),
+    h("div", { class: "card" }, d.plugins.length ? h("table", {}, [h("thead", {}, h("tr", {}, ["플러그인", "버전", "상태", "더하는 기능", "관리 화면", ""].map((x) => h("th", { text: x })))),
+      h("tbody", {}, d.plugins.map((x) => h("tr", {}, [
+        h("td", {}, [h("b", { text: x.name }), h("div", { class: "muted", text: x.id + (x.dev ? " (개발용 폴더)" : "") }), x.description ? h("div", { class: "muted", text: x.description }) : null]),
+        h("td", { text: "v" + x.version }),
+        h("td", {}, x.error ? h("span", { style: { color: "#c62828" }, text: "오류: " + x.error }) : h("span", { text: x.enabled ? "켜짐" : "꺼짐" })),
+        h("td", { class: "muted", text: [x.panels.length ? "패널 " + x.panels.join(", ") : "", x.connectors.length ? "연동 " + x.connectors.length + "개" : "", x.routes ? "API " + x.routes + "개" : "", x.services.length ? x.services.join(", ") : ""].filter(Boolean).join(" · ") }),
+        h("td", {}, x.adminPages.map((pg) => h("div", {}, h("a", { href: `#/plugins/${x.id}/${pg.id}`, text: pg.title })))),
+        h("td", {}, [h("button", { class: "small", disabled: !isAdmin, text: x.enabled ? "끄기" : "켜기", onclick: () => guard(async () => { await api("POST", `/api/plugins/${x.id}/enabled`, { enabled: !x.enabled }); pagePlugins(); }) }), " ",
+          x.dev ? null : h("button", { class: "small", disabled: !isAdmin, text: "삭제", onclick: () => confirm(`${x.name} 플러그인을 지울까요? 플러그인 데이터(plugin-data/${x.id})는 남겨 둡니다.`) && guard(async () => { await api("DELETE", "/api/plugins/" + x.id); pagePlugins(); }) })])])))])
+      : h("p", { class: "muted", text: "설치된 플러그인이 없습니다." }))]);
+}
+async function pagePluginAdmin(id, pageId) {
+  const d = await api("GET", "/api/plugins");
+  const x = d.plugins.find((y) => y.id === id); const pg = x && (x.adminPages.find((y) => y.id === pageId) || x.adminPages[0]);
+  if (!pg) return pagePlugins();
+  shell("plugins", [h("div", { class: "row" }, [h("a", { href: "#/plugins", text: "플러그인" }), h("span", { text: "›" }), h("b", { text: `${x.name} · ${pg.title}` })]),
+    h("iframe", { src: pg.url, class: "plugin-admin", title: pg.title, style: { width: "100%", height: "calc(100vh - 90px)", border: "1px solid #ddd", borderRadius: "8px", background: "#fff" } })]);
 }
 
 // ---------- extension distribution ----------

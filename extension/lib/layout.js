@@ -2,7 +2,7 @@
 (function (root) {
   "use strict";
   const SCHEMA = 1;
-  const TYPES = ["native", "image", "video", "html", "links", "memo", "iframe", "carousel", "feed"];
+  const TYPES = ["native", "image", "video", "html", "links", "memo", "iframe", "carousel", "feed", "plugin"];
   const MIN_COL = 120, MAX_COL = 3000, MIN_PANEL = 40, MAX_PANEL = 4000;
 
   // Space in px (0-200) or null = use the default.
@@ -183,6 +183,10 @@
       out.refresh = num(p.refresh, 0, 1440) || 0;
       out.zoom = num(p.zoom, 25, 300) || 100;
       if (p.scroll === false) out.scroll = false;
+    } else if (p.type === "plugin") {
+      // a panel offered by an admin server plugin: drawn from the plugin's panel url (portal-customizer.json "plugins")
+      out.plugin = /^[a-z0-9][a-z0-9-]{1,39}$/.test(String(p.plugin || "")) ? p.plugin : "";
+      out.panel = /^[\w-]{1,40}$/.test(String(p.panel || "")) ? p.panel : "";
     }
     return out;
   }
@@ -313,6 +317,7 @@
     if (type === "links") return Object.assign(base, { items: [], newTab: true });
     if (type === "memo") return Object.assign(base, { height: 200, text: "" });
     if (type === "iframe") return Object.assign(base, { height: 320, url: "", refresh: 0, zoom: 100 });
+    if (type === "plugin") return Object.assign(base, { height: 360, plugin: "", panel: "" });
     if (type === "video") return Object.assign(base, { height: 240, src: "", poster: "", href: "", autoplay: true, muted: true, loop: true, controls: false });
     if (type === "html") return Object.assign(base, { height: 200, html: "" });
     if (type === "carousel") return Object.assign(base, { height: 240, slides: [], interval: 5, fit: "cover", captions: true, layer: false });
