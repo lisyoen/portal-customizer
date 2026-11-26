@@ -80,8 +80,8 @@ const page = await ctx.newPage();
 const dialogs = [];
 page.on("dialog", (d) => { dialogs.push(d.message()); d.accept(); });
 await page.goto("http://portal.test/home");
-await page.waitForSelector("#pc-root iframe.pc-plugin-frame", { timeout: 8000 }).catch(() => {});
-const frameEl = await page.$("#pc-root iframe.pc-plugin-frame");
+await page.waitForSelector("#pc-frames iframe.pc-plugin-frame", { timeout: 8000 }).catch(() => {});
+const frameEl = await page.$("#pc-frames iframe.pc-plugin-frame");
 check("plugin panel iframe rendered", !!frameEl);
 const attrs = frameEl ? await frameEl.evaluate((f) => ({ plugin: f.dataset.pcPlugin, origin: f.dataset.pcOrigin, src: f.src })) : {};
 check("iframe marked with plugin and origin", attrs.plugin === "hello" && attrs.origin === "http://admin.test" && /pc_site=http%3A%2F%2Fportal\.test/.test(attrs.src), JSON.stringify(attrs));
@@ -98,11 +98,22 @@ if (frame) {
   await frame.waitForFunction(() => document.getElementById("away").textContent !== "…", null, { timeout: 5000 }).catch(() => {});
   const away = await frame.textContent("#away");
   check("request to another origin refused", away.startsWith("ERR") && !stolen, away);
+  if (process.env.DEBUG) console.log("DBG", await page.evaluate(() => { const ph = document.querySelector(".pc-frame-ph"); const f = document.querySelector("#pc-frames iframe"); return { ph: ph && JSON.stringify(ph.getBoundingClientRect()), st: f && f.getAttribute("style"), fr: f && JSON.stringify(f.getBoundingClientRect()), layer: JSON.stringify(document.querySelector("#pc-frames").getBoundingClientRect()), parent: document.querySelector("#pc-frames").parentElement.tagName + "." + document.querySelector("#pc-frames").parentElement.className }; }));
   const popupWait = ctx.waitForEvent("page", { timeout: 5000 }).catch(() => null);
   await frame.click("#compose");
   const np = await popupWait;
   if (np) await np.waitForLoadState().catch(() => {});
   check("open connector asks first, then opens the portal page", dialogs.includes("작성 창을 열까요?") && np && np.url() === "http://portal.test/compose?to=a%40b.test", JSON.stringify(dialogs) + " " + (np && np.url()));
+}
+// drawing the layout again keeps the plugin page (no reload): a marker set in the frame survives
+if (frame) {
+  await frame.evaluate(() => { window.__pcMark = 42; });
+  await popup.evaluate(() => chrome.storage.local.set({ sites: { "http://unrelated.test/": { on: false } } }));
+  await page.waitForTimeout(1500);
+  const same = page.frames().find((f) => f.url().startsWith("http://admin.test/p/hello/panel.html"));
+  check("plugin frame not reloaded when the layout is drawn again", same && await same.evaluate(() => window.__pcMark).catch(() => 0) === 42 && (await page.locator("#pc-root .pc-type-plugin .pc-frame-ph").count()) === 1);
+  const box = await page.evaluate(() => { const ph = document.querySelector(".pc-frame-ph").getBoundingClientRect(); const fr = document.querySelector("#pc-frames iframe").getBoundingClientRect(); return [Math.round(ph.x - fr.x), Math.round(ph.y - fr.y), Math.round(ph.width - fr.width), Math.round(ph.height - fr.height)]; });
+  check("plugin frame placed over its panel", box.every((d) => Math.abs(d) <= 1), JSON.stringify(box));
 }
 // a frame that is not a plugin panel gets no answer
 const spoof = await page.evaluate(() => new Promise((resolve) => {

@@ -387,7 +387,40 @@
     if (!rafId) rafId = requestAnimationFrame(tick);
   }
 
+  // Plugin panels: the iframe lives in a layer beside #pc-root and is placed over its panel every frame (like
+  // native widgets), so drawing the layout again does not reload the plugin page (moving an iframe reloads it).
+  let frameLayer = null, frameGc = 0;
+  const pframes = new Map(); // panel id|url -> { iframe, ph, used }
+  // right after #pc-root, so whatever shows the layout shows the frames too (a clipped frame is throttled)
+  function frameLayerFor(root) {
+    clearTimeout(frameGc);
+    if (frameLayer && frameLayer.parentNode === root.parentNode && frameLayer.isConnected) return frameLayer;
+    if (frameLayer) frameLayer.remove();
+    pframes.clear();
+    frameLayer = el("div", { id: "pc-frames" });
+    root.after(frameLayer);
+    return frameLayer;
+  }
+  function placeFrames() {
+    if (!pframes.size || !frameLayer) return;
+    const rootR = mounted.root.getBoundingClientRect();
+    const lr = frameLayer.getBoundingClientRect();
+    const base = { left: lr.left, top: lr.top };
+    for (const f of pframes.values()) {
+      const ph = f.ph;
+      if (!ph || !ph.isConnected) { f.iframe.style.display = "none"; continue; }
+      const r = ph.getBoundingClientRect();
+      if (!r.width || !r.height) { f.iframe.style.display = "none"; continue; }
+      const col = ph.closest(".pc-col-body");
+      const clipR = col ? col.getBoundingClientRect() : r;
+      const top = Math.max(0, Math.max(clipR.top, rootR.top) - r.top), bottom = Math.max(0, r.bottom - Math.min(clipR.bottom, rootR.bottom));
+      Object.assign(f.iframe.style, { display: "", left: (r.left - base.left) + "px", top: (r.top - base.top) + "px", width: r.width + "px", height: r.height + "px",
+        clipPath: top || bottom ? `inset(${top}px 0 ${bottom}px 0)` : "none" });
+    }
+  }
+
   function unmount() {
+    if (frameLayer) frameGc = setTimeout(() => { if (!mounted && frameLayer) { frameLayer.remove(); frameLayer = null; pframes.clear(); } }, 3000);
     if (rafId) cancelAnimationFrame(rafId);
     rafId = 0;
     locked = [];
@@ -424,6 +457,7 @@
     if (rendering) { renderAgain = layout; return; }
     rendering = true;
     try { renderNow(layout); } finally { rendering = false; }
+    for (const [k, f] of pframes) if (!f.used) { f.iframe.remove(); pframes.delete(k); }
     if (renderAgain) { const next = renderAgain; renderAgain = null; render(S.editMode && draft ? draft : next); }
   }
   function renderNow(layout) {
@@ -433,6 +467,7 @@
     root.classList.toggle("pc-edit", editing);
     document.documentElement.classList.toggle("pc-editing", editing);
     slots = new Map();
+    for (const f of pframes.values()) f.used = false;
     if (editing) clearTimers();
     usedCache = new Map();
     // columns that scroll keep their position when the layout is drawn again
@@ -693,10 +728,19 @@
     } else if (p.type === "plugin") {
       const def = PCBridge.panelDef(S.orgConfig, p.plugin, p.panel);
       if (def) {
-        iframeEl = el("iframe", { class: "pc-iframe pc-plugin-frame", src: PCBridge.panelUrl(def, p), title: p.title || def.title });
-        iframeEl.dataset.pcPlugin = p.plugin;
-        iframeEl.dataset.pcOrigin = new URL(def.url).origin;
-        body.append(iframeEl);
+        const key = p.id + "|" + def.url;
+        let f = pframes.get(key);
+        if (!f) {
+          const fr = el("iframe", { class: "pc-plugin-frame", src: PCBridge.panelUrl(def, p), title: p.title || def.title });
+          fr.dataset.pcPlugin = p.plugin;
+          fr.dataset.pcOrigin = new URL(def.url).origin;
+          frameLayerFor(mounted.root).append(fr);
+          f = { iframe: fr };
+          pframes.set(key, f);
+        }
+        f.used = true;
+        f.ph = el("div", { class: "pc-frame-ph" });
+        body.append(f.ph);
       } else body.append(el("div", { class: "pc-empty", text: t("emptyPlugin", [p.plugin + "/" + p.panel]) }));
     } else if (p.type === "iframe") {
       if (p.url) {
@@ -887,6 +931,7 @@
       sizeInner(info, s.hideHeader);
     }
     placeParts(base);
+    placeFrames();
     if (stale) { update(); return; }
     rafId = requestAnimationFrame(tick);
   }

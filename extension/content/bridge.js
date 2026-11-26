@@ -1,7 +1,7 @@
 // Site connector bridge. Plugin panels are pages on the admin server shown in an iframe; they cannot use the
 // portal's own session. A panel asks the extension with postMessage({ pc: "call", id, op, args }) to run one of its
 // plugin's connectors (declared by the admin server in portal-customizer.json "plugins"), and the content script
-// runs it here, inside the portal tab: a request to the portal's own origin with the user's session, or opening a
+// runs it here (its own plugin's connectors or another plugin's from the same admin server), inside the portal tab: a request to the portal's own origin with the user's session, or opening a
 // portal page. Only iframes the extension created for that plugin (data-pc-plugin, origin of the panel url) are
 // answered, only declared connectors run, only on pages their sites list names, and only against the page's origin.
 // A connector with "confirm" asks the user first. See docs/plugins.md.
@@ -88,8 +88,10 @@
   }
 
   async function run(org, pluginId, op, args) {
+    // the panel's own plugin first, then the other plugins of the same admin server (e.g. a board plugin using a
+    // portal integration plugin's connectors)
     const p = plugins(org).find((x) => x.id === pluginId);
-    const c = p && (p.connectors || []).find((x) => x.id === op);
+    const c = p && ((p.connectors || []).find((x) => x.id === op) || plugins(org).flatMap((x) => x.connectors || []).find((x) => x.id === op));
     if (!c) throw new Error("없는 연동입니다: " + op);
     if (!siteOk(c.sites, location.href)) throw new Error("이 화면에서는 쓸 수 없는 연동입니다: " + op);
     const ctx = { args: args && typeof args === "object" ? args : {}, page: { origin: location.origin, href: location.href, title: document.title }, now: new Date().toISOString() };

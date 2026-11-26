@@ -71,7 +71,9 @@ test("connector checks: unknown, other site, other origin, cancelled confirm", a
   await assert.rejects(B.run(org, "hello", "nope", {}), /없는 연동/);
   await assert.rejects(B.run(org, "hello", "nothere", {}), /쓸 수 없는/);
   await assert.rejects(B.run(org, "hello", "away", {}), /사이트 주소로만/);
-  await assert.rejects(B.run(org, "other", "me", {}), /없는 연동/);
+  await assert.rejects(B.run(org, "other", "me", {}), /없는 연동/, "the frame's plugin must be one the server published");
+  const org2 = { plugins: org.plugins.concat([{ id: "board", name: "Board", base: "http://admin.test/p/board/", panels: [], connectors: [] }]) };
+  deq((await B.run(org2, "board", "me", { q: "x", to: [] })).data, { name: "홍길동", ns: [1, 2] }, "connectors of another plugin of the same server");
   deq(await B.run(org, "hello", "compose", { to: ["a@b", "c@d"] }), { opened: true, url: "http://portal.test/compose?to=a%40b%3Bc%40d" });
   assert.equal(opened.length, 1);
   const { B: B2, opened: o2 } = load({ confirm: false });
