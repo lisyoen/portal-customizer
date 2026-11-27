@@ -17,7 +17,7 @@ const data = mkdtempSync(path.join(tmpdir(), "kcadm-"));
 const port = 21000 + Math.floor(Math.random() * 20000);
 const server = `http://127.0.0.1:${port}`;
 execFileSync(process.execPath, ["server/cli.js", "admin", "boss"], { env: { ...process.env, PC_DATA: data, PC_PASSWORD: "boss-pass-123" } });
-const srv = spawn(process.execPath, ["server/server.js"], { env: { ...process.env, PC_DATA: data, PORT: String(port), PC_NO_AUTO_UPDATE: "1" }, stdio: "inherit" });
+const srv = spawn(process.execPath, ["server/server.js"], { env: { ...process.env, PC_DATA: data, PORT: String(port), PC_NO_AUTO_UPDATE: "1", PC_PLUGIN_DIRS: ["server/tests/fixtures/plugins/hello", "server/tests/fixtures/plugins/broken"].join(":") }, stdio: "inherit" });
 for (let i = 0; i < 50; i += 1) { try { await fetch(server + "/api/health"); break; } catch (_e) { await new Promise((r) => setTimeout(r, 100)); } }
 
 const results = [];
@@ -272,6 +272,15 @@ await con.waitForSelector(".doc table");
 await con.click("text=LICENSE 전문 보기");
 await con.waitForTimeout(300);
 check("license page shows the guide and the full LICENSE", (await con.locator(".doc").innerText()).includes("BSL 1.1") && (await con.locator("pre.license-text").innerText()).startsWith("Business Source License 1.1"));
+
+// plugin admin pages are listed in the side menu under 플러그인; a plugin that failed to load is marked
+{
+  const subs = await con.$$eval("nav.side a.sub", (xs) => xs.map((x) => [x.textContent, x.getAttribute("href")]));
+  check("side menu lists plugin admin pages and broken plugins", subs.some(([t, h]) => t === "Hello 설정" && h === "#/plugins/hello/main") && subs.some(([t]) => t.startsWith("⚠ Broken")), JSON.stringify(subs));
+  await con.click("nav.side a.sub >> text=Hello 설정");
+  await con.waitForSelector("iframe.plugin-admin", { timeout: 5000 }).catch(() => {});
+  check("plugin admin page opens in the console", (await con.locator("iframe.plugin-admin").getAttribute("src").catch(() => "")) === "/p/hello/admin.html");
+}
 
 // the server updated while the page stayed open -> the page reloads to get the new menus
 await con.route("**/api/update", async (r) => { const res = await r.fetch(); const j = await res.json(); j.current = "9.9.9"; await r.fulfill({ response: res, json: j }); });

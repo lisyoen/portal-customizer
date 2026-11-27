@@ -85,7 +85,9 @@ const PAGES = [["layouts", "배치"], ["contents", "콘텐츠(CMS)"], ["stats", 
 function shell(active, content) {
   $app.replaceChildren(h("div", { class: "layout" }, [
     h("nav", { class: "side" }, [h("a", { class: "brand", href: "#/layouts", title: "배치 목록으로", id: "brand", onclick: () => { if (location.hash === "#/layouts") route(); } }, [h("img", { src: "favicon.svg", alt: "" }), siteName]), versionBox(),
-      ...PAGES.filter(([k]) => k !== "admins" || me.role === "admin").map(([k, t]) => h("a", { href: "#/" + k, class: active === k ? "on" : "", text: t })),
+      ...PAGES.filter(([k]) => k !== "admins" || me.role === "admin").flatMap(([k, t]) => [h("a", { href: "#/" + k, class: active === k ? "on" : "", text: t }),
+        // admin pages of installed plugins right under "플러그인" (a plugin that failed to load is marked)
+        ...(k === "plugins" ? pluginNav.map((x) => h("a", { class: "sub" + (location.hash === x.href ? " on" : ""), href: x.href, title: x.error || "", text: (x.error ? "⚠ " : "") + x.title })) : [])]),
       h("div", { class: "grow" }),
       h("div", { class: "me", text: `${me.name} (${me.role === "admin" ? "관리자" : "편집자"})` }),
       h("a", { href: "#", text: "비밀번호 변경", onclick: (e) => { e.preventDefault(); changePassword(); } }),
@@ -130,8 +132,16 @@ function changePassword() {
     [{ text: "변경", cls: "primary", run: () => guard(async () => { await api("POST", "/api/me/password", { current: cur.value, password: pw.value }); toast("변경했습니다"); }) }]);
 }
 let pageVersion = "", staleNoticed = false; // server version this page's code came with
+let pluginNav = []; // [{ title, href, error }] admin pages of plugins for the side menu
+async function loadPluginNav() {
+  try {
+    const d = await api("GET", "/api/plugins");
+    pluginNav = d.plugins.flatMap((x) => x.error ? [{ title: x.name + " (오류)", href: "#/plugins", error: x.error }] : x.enabled ? x.adminPages.map((pg) => ({ title: pg.title, href: `#/plugins/${x.id}/${pg.id}` })) : []);
+  } catch (_e) { pluginNav = []; }
+}
 async function boot() {
   try { const r = await api("GET", "/api/me"); me = r.admin; pageVersion = r.version || pageVersion; } catch (_e) { return; }
+  await loadPluginNav();
   route();
 }
 window.addEventListener("hashchange", () => { if (me) route(); });
@@ -152,6 +162,7 @@ function route() {
 
 // ---------- plugins ----------
 async function pagePlugins() {
+  await loadPluginNav();
   const d = await api("GET", "/api/plugins");
   const isAdmin = me.role === "admin";
   shell("plugins", [h("h1", { text: "플러그인" }),
