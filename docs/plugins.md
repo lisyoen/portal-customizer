@@ -27,6 +27,7 @@ my-plugin/
 |--------|-----|
 | `api.route(method, path, handler)` | Route under `/api/p/<id><path>`. `handler(req, res, params, query)`; return a value to send it as JSON |
 | `api.panel({ name, title, path, height, sites })` | Panel type offered in the extension's **Add panel** menu (page `/p/<id><path>`, optional page address prefixes) |
+| `api.panelSource(fn)` | Panels that follow the plugin's data (e.g. one per board): `fn()` returns panel definitions each time the extension asks |
 | `api.connector(def)` | Site connector (below) published to the extensions |
 | `api.adminPage({ id, title, path })` | Page shown inside the admin console (same origin, uses the console login) |
 | `api.provide(kind, name, impl)` / `api.use(kind)` | Services shared between plugins. Kinds: `identity`, `notify`, `profile`, `share`, `source` |

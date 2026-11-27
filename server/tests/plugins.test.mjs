@@ -75,6 +75,10 @@ test("published: panels and connectors go to the extension; disabled plugins do 
   assert.equal(who.kind, "fetch"); assert.equal(who.request.method, "POST"); assert.equal(who.request.bodyType, "json"); assert.deepEqual(who.response.pick, { name: "user.name" });
   assert.equal(h.connectors.find((c) => c.id === "hello.compose").confirm, "작성 창을 열까요?");
   assert.ok(!pub.plugins.some((x) => x.id === "broken" || x.id === "uses-hello"), "plugins with errors or nothing for the extension are left out");
+  await call("POST", "/api/p/hello/more"); await call("POST", "/api/p/hello/more");
+  const dyn = (await call("GET", "/portal-customizer.json")).body.plugins.find((x) => x.id === "hello").panels.map((x) => x.name + " " + x.url.replace(base, ""));
+  assert.deepEqual(dyn, ["board /p/hello/panel.html", "dyn-0 /p/hello/panel.html?i=0", "dyn-1 /p/hello/panel.html?i=1"], "panels from panelSource follow the plugin's data");
+  assert.deepEqual((await call("GET", "/api/plugins")).body.plugins.find((x) => x.id === "hello").panels, ["Hello board", "Dynamic 0", "Dynamic 1"]);
   assert.equal((await call("POST", "/api/plugins/hello/enabled", { enabled: false })).status, 200);
   pub = (await call("GET", "/portal-customizer.json")).body;
   assert.equal(pub.plugins, undefined);

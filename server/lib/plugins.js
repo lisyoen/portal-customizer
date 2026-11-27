@@ -78,7 +78,7 @@ class PluginHost {
     let man;
     try { man = this.readManifest(dir); } catch (e) { this.o.log(`plugin ${dir}: ${e.message}`); return null; }
     if (this.plugins.has(man.id)) this.unload(man.id);
-    const st = { ...man, dir, dev: !!dev, routes: [], panels: [], connectors: [], adminPages: [], error: "", loadedAt: new Date().toISOString(), dispose: null, mainFile: "" };
+    const st = { ...man, dir, dev: !!dev, routes: [], panels: [], panelSource: null, connectors: [], adminPages: [], error: "", loadedAt: new Date().toISOString(), dispose: null, mainFile: "" };
     this.plugins.set(man.id, st);
     if (man.minCore && cmpVer(this.o.coreVersion, man.minCore) < 0) { st.error = `관리 서버 v${man.minCore} 이상이 필요합니다`; return st; }
     if (!man.main) return st;
@@ -110,6 +110,9 @@ class PluginHost {
       },
       // panel types the extension offers in its "add panel" menu; path is under /p/<id>/
       panel(def) { st.panels.push(cleanPanel(def)); },
+      // panels that depend on the plugin's data (e.g. one per board): fn() returns panel definitions, asked each
+      // time portal-customizer.json is served
+      panelSource(fn) { if (typeof fn === "function") st.panelSource = fn; },
       // declarative request run by the extension inside the portal tab (docs/plugins.md "connectors")
       connector(def) { st.connectors.push(cleanConnector(def)); },
       adminPage(def) { st.adminPages.push({ id: String(def.id || "main").replace(/[^\w-]/g, "").slice(0, 40), title: String(def.title || st.name).slice(0, 40), path: cleanPath(def.path || "/admin.html") }); },
@@ -157,20 +160,27 @@ class PluginHost {
     const f = path.join(root, path.normalize(m[2] && m[2] !== "/" ? m[2] : "/index.html"));
     return f.startsWith(root + path.sep) ? f : "";
   }
+  allPanels(st) {
+    let extra = [];
+    if (st.panelSource) { try { extra = (st.panelSource() || []).slice(0, 200).map(cleanPanel); } catch (e) { this.o.log(`plugin ${st.id} panels: ${e.message}`); } }
+    const names = new Set(st.panels.map((x) => x.name));
+    return st.panels.concat(extra.filter((x) => !names.has(x.name)));
+  }
   // what the extension gets in portal-customizer.json
   published(base) {
     const out = [];
     for (const st of this.plugins.values()) {
       if (!this.enabled(st.id) || st.error) continue;
-      if (!st.panels.length && !st.connectors.length) continue;
+      const panels = this.allPanels(st);
+      if (!panels.length && !st.connectors.length) continue;
       out.push({ id: st.id, name: st.name, version: st.version, base: `${base}/p/${st.id}/`,
-        panels: st.panels.map((x) => Object.assign({}, x, { url: `${base}/p/${st.id}${x.path}` })), connectors: st.connectors });
+        panels: panels.map((x) => Object.assign({}, x, { url: `${base}/p/${st.id}${x.path}` })), connectors: st.connectors });
     }
     return out;
   }
   list() {
     return [...this.plugins.values()].map((st) => ({ id: st.id, name: st.name, version: st.version, description: st.description, dev: st.dev, enabled: this.enabled(st.id),
-      error: st.error, loadedAt: st.loadedAt, routes: st.routes.length, panels: st.panels.map((x) => x.title), connectors: st.connectors.map((x) => x.id),
+      error: st.error, loadedAt: st.loadedAt, routes: st.routes.length, panels: this.allPanels(st).map((x) => x.title), connectors: st.connectors.map((x) => x.id),
       adminPages: st.adminPages.map((x) => Object.assign({}, x, { url: `/p/${st.id}${x.path}` })), services: [...this.services.entries()].flatMap(([k, l]) => l.filter((x) => x.plugin === st.id).map((x) => `${k}:${x.name}`)) }));
   }
   // install or replace from a zip: plugin.json at the top or inside one top folder
@@ -219,7 +229,7 @@ function cmpVer(a, b) {
   for (let i = 0; i < 3; i += 1) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0);
   return 0;
 }
-function cleanPath(p) { const s = "/" + String(p || "").replace(/^\/+/, ""); if (/\.\./.test(s)) throw new Error("경로가 올바르지 않습니다"); return s.slice(0, 200); }
+function cleanPath(p) { const s = "/" + String(p || "").replace(/^\/+/, ""); if (/\.\./.test(s.split("?")[0])) throw new Error("경로가 올바르지 않습니다"); return s.slice(0, 300); }
 function cleanPanel(d) {
   if (!d || !/^[\w-]{1,40}$/.test(String(d.name || ""))) throw new Error("panel name 이 올바르지 않습니다");
   return { name: d.name, title: String(d.title || d.name).slice(0, 60), path: cleanPath(d.path || "/panel.html"), height: Math.min(4000, Math.max(80, Number(d.height) || 360)),
